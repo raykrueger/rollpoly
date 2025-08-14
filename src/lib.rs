@@ -131,6 +131,180 @@ pub fn roll(dice_notation: &str) -> Result<Vec<i32>, DiceError> {
 }
 
 /// Parses dice notation and returns the rolled results
+/// Rolls dice and applies keep/drop operations
+fn roll_keep_drop_dice(
+    count: usize,
+    sides: i32,
+    operation: DiceOperation,
+    op_count: usize,
+) -> Vec<i32> {
+    use rand::Rng;
+    let mut rng = rand::thread_rng();
+    let mut dice_results = Vec::new();
+
+    // Roll all the dice
+    for _ in 0..count {
+        dice_results.push(rng.gen_range(1..=sides));
+    }
+
+    // Sort and apply the operation
+    match operation {
+        DiceOperation::KeepHighest => {
+            dice_results.sort_unstable_by(|a, b| b.cmp(a)); // Sort descending (highest first)
+            dice_results.truncate(op_count);
+        }
+        DiceOperation::KeepLowest => {
+            dice_results.sort_unstable(); // Sort ascending (lowest first)
+            dice_results.truncate(op_count);
+        }
+        DiceOperation::DropHighest => {
+            dice_results.sort_unstable(); // Sort ascending (lowest first)
+            dice_results.truncate(count - op_count); // Keep all but the highest
+        }
+        DiceOperation::DropLowest => {
+            dice_results.sort_unstable_by(|a, b| b.cmp(a)); // Sort descending (highest first)
+            dice_results.truncate(count - op_count); // Keep all but the lowest
+        }
+    }
+
+    dice_results
+}
+
+/// Rolls simple dice (no special operations)
+fn roll_simple_dice(count: usize, sides: i32) -> Vec<i32> {
+    use rand::Rng;
+    let mut rng = rand::thread_rng();
+    let mut dice_results = Vec::new();
+    for _ in 0..count {
+        dice_results.push(rng.gen_range(1..=sides));
+    }
+    dice_results
+}
+
+/// Rolls dice and counts net successes (successes minus failures)
+fn roll_success_failure_dice(
+    count: usize,
+    sides: i32,
+    success_comp: SuccessComparison,
+    success_target: i32,
+    failure_comp: SuccessComparison,
+    failure_target: i32,
+) -> Vec<i32> {
+    use rand::Rng;
+    let mut rng = rand::thread_rng();
+    let mut net_successes = 0;
+
+    // Roll all the dice and count successes/failures
+    for _ in 0..count {
+        let roll = rng.gen_range(1..=sides);
+
+        let is_success = match success_comp {
+            SuccessComparison::GreaterThan => roll > success_target,
+            SuccessComparison::LessThan => roll < success_target,
+        };
+
+        let is_failure = match failure_comp {
+            SuccessComparison::GreaterThan => roll > failure_target,
+            SuccessComparison::LessThan => roll < failure_target,
+        };
+
+        if is_success {
+            net_successes += 1;
+        }
+        if is_failure {
+            net_successes -= 1;
+        }
+    }
+
+    // Return the net success count
+    vec![net_successes]
+}
+
+/// Rolls dice and counts successes based on the provided comparison
+fn roll_success_counting_dice(
+    count: usize,
+    sides: i32,
+    comparison: SuccessComparison,
+    target: i32,
+) -> Vec<i32> {
+    use rand::Rng;
+    let mut rng = rand::thread_rng();
+    let mut success_count = 0;
+
+    // Roll all the dice and count successes
+    for _ in 0..count {
+        let roll = rng.gen_range(1..=sides);
+
+        let is_success = match comparison {
+            SuccessComparison::GreaterThan => roll > target,
+            SuccessComparison::LessThan => roll < target,
+        };
+
+        if is_success {
+            success_count += 1;
+        }
+    }
+
+    // Return the success count as the final result
+    vec![success_count]
+}
+
+/// Rolls exploding dice based on the provided parameters
+fn roll_exploding_dice(
+    count: usize,
+    sides: i32,
+    explode_comp: Option<SuccessComparison>,
+    explode_target: Option<i32>,
+) -> Vec<i32> {
+    use rand::Rng;
+    let mut rng = rand::thread_rng();
+    let mut all_results = Vec::new();
+
+    // Roll each die with exploding
+    for _ in 0..count {
+        const MAX_EXPLOSIONS: usize = 100;
+
+        let mut die_results = Vec::new();
+        let mut current_roll = rng.gen_range(1..=sides);
+        die_results.push(current_roll);
+
+        // Safety limit to prevent infinite explosions
+        let mut explosion_count = 0;
+
+        // Check if this roll should explode
+        loop {
+            let should_explode = match (explode_comp, explode_target) {
+                (None, None) => {
+                    // Simple exploding - explode on max value
+                    current_roll == sides
+                }
+                (None, Some(target)) => {
+                    // Explode on specific number (e.g., "d6!3" - explode on exactly 3)
+                    current_roll == target
+                }
+                (Some(SuccessComparison::GreaterThan), Some(target)) => current_roll > target,
+                (Some(SuccessComparison::LessThan), Some(target)) => current_roll < target,
+                _ => false,
+            };
+
+            if should_explode && explosion_count < MAX_EXPLOSIONS {
+                // Roll another die and add it
+                current_roll = rng.gen_range(1..=sides);
+                die_results.push(current_roll);
+                explosion_count += 1;
+            } else {
+                break;
+            }
+        }
+
+        // Add all results from this exploding die
+        all_results.extend(die_results);
+    }
+
+    all_results
+}
+
+#[allow(clippy::too_many_lines)]
 fn parse_and_roll_dice(notation: &str) -> Option<Vec<i32>> {
     use rand::Rng;
     let mut rng = rand::thread_rng();
@@ -150,103 +324,31 @@ fn parse_and_roll_dice(notation: &str) -> Option<Vec<i32>> {
 
     // Handle exploding dice syntax (e.g., "2d20!", "7d20!3", "d20!>10", "3d12!<2")
     if let Some((count, sides, explode_comp, explode_target)) = parse_exploding_dice(notation) {
-        let mut all_results = Vec::new();
-
-        // Roll each die with exploding
-        for _ in 0..count {
-            let mut die_results = Vec::new();
-            let mut current_roll = rng.gen_range(1..=sides);
-            die_results.push(current_roll);
-
-            // Safety limit to prevent infinite explosions
-            let mut explosion_count = 0;
-            const MAX_EXPLOSIONS: usize = 100;
-
-            // Check if this roll should explode
-            loop {
-                let should_explode = match (explode_comp, explode_target) {
-                    (None, None) => {
-                        // Simple exploding - explode on max value
-                        current_roll == sides
-                    }
-                    (None, Some(target)) => {
-                        // Explode on specific number (e.g., "d6!3" - explode on exactly 3)
-                        current_roll == target
-                    }
-                    (Some(SuccessComparison::GreaterThan), Some(target)) => current_roll > target,
-                    (Some(SuccessComparison::LessThan), Some(target)) => current_roll < target,
-                    _ => false,
-                };
-
-                if should_explode && explosion_count < MAX_EXPLOSIONS {
-                    // Roll another die and add it
-                    current_roll = rng.gen_range(1..=sides);
-                    die_results.push(current_roll);
-                    explosion_count += 1;
-                } else {
-                    break;
-                }
-            }
-
-            // Add all results from this exploding die
-            all_results.extend(die_results);
-        }
-
-        return Some(all_results);
+        return Some(roll_exploding_dice(
+            count,
+            sides,
+            explode_comp,
+            explode_target,
+        ));
     }
 
     // Handle success counting syntax (e.g., "4d20>19", "10d12<3")
     if let Some((count, sides, comparison, target)) = parse_success_dice(notation) {
-        let mut success_count = 0;
-
-        // Roll all the dice and count successes
-        for _ in 0..count {
-            let roll = rng.gen_range(1..=sides);
-
-            let is_success = match comparison {
-                SuccessComparison::GreaterThan => roll > target,
-                SuccessComparison::LessThan => roll < target,
-            };
-
-            if is_success {
-                success_count += 1;
-            }
-        }
-
-        // Return the success count as the final result
-        return Some(vec![success_count]);
+        return Some(roll_success_counting_dice(count, sides, comparison, target));
     }
 
     // Handle success/failure counting syntax (e.g., "10d10>6f<3", "4d20<5f>19")
     if let Some((count, sides, success_comp, success_target, failure_comp, failure_target)) =
         parse_success_failure_dice(notation)
     {
-        let mut net_successes = 0;
-
-        // Roll all the dice and count successes/failures
-        for _ in 0..count {
-            let roll = rng.gen_range(1..=sides);
-
-            let is_success = match success_comp {
-                SuccessComparison::GreaterThan => roll > success_target,
-                SuccessComparison::LessThan => roll < success_target,
-            };
-
-            let is_failure = match failure_comp {
-                SuccessComparison::GreaterThan => roll > failure_target,
-                SuccessComparison::LessThan => roll < failure_target,
-            };
-
-            if is_success {
-                net_successes += 1;
-            }
-            if is_failure {
-                net_successes -= 1;
-            }
-        }
-
-        // Return the net success count
-        return Some(vec![net_successes]);
+        return Some(roll_success_failure_dice(
+            count,
+            sides,
+            success_comp,
+            success_target,
+            failure_comp,
+            failure_target,
+        ));
     }
 
     // Handle keep highest/lowest syntax (e.g., "4d10K", "7d12K3", "3d6k", "100d6k99")
@@ -297,8 +399,9 @@ fn parse_and_roll_dice(notation: &str) -> Option<Vec<i32>> {
                 }
             } else {
                 // RerollType::Continuous
-                let mut reroll_count = 0;
                 const MAX_REROLLS: usize = 100;
+
+                let mut reroll_count = 0;
                 loop {
                     let should_reroll = match reroll_condition {
                         RerollCondition::Value(val) => current_roll == val,
@@ -582,7 +685,7 @@ fn parse_reroll_dice(notation: &str) -> Option<(usize, i32, RerollType, RerollCo
         count_str.parse().ok()?
     };
 
-    let reroll_pos = rest.find(|c| c == 'r' || c == 'R')?;
+    let reroll_pos = rest.find(['r', 'R'])?;
     let sides_str = &rest[..reroll_pos];
     let sides = sides_str.parse().ok()?;
 
@@ -605,7 +708,7 @@ fn parse_reroll_dice(notation: &str) -> Option<(usize, i32, RerollType, RerollCo
 }
 
 /// Parses simple dice notation like "4d10" or "d6"
-fn parse_simple_dice(notation: &str) -> Option<(i32, i32)> {
+fn parse_simple_dice(notation: &str) -> Option<(usize, i32)> {
     if let Some(d_pos) = notation.find('d') {
         let count_str = &notation[..d_pos];
         let sides_str = &notation[d_pos + 1..];
@@ -614,10 +717,17 @@ fn parse_simple_dice(notation: &str) -> Option<(i32, i32)> {
         let count = if count_str.is_empty() {
             1
         } else {
-            count_str.parse().ok()?
+            let parsed_count: i32 = count_str.parse().ok()?;
+            if parsed_count <= 0 {
+                return None; // Reject negative or zero dice counts
+            }
+            usize::try_from(parsed_count).ok()?
         };
 
         let sides = sides_str.parse().ok()?;
+        if sides <= 0 {
+            return None; // Reject negative or zero sided dice
+        }
 
         Some((count, sides))
     } else {
@@ -627,9 +737,6 @@ fn parse_simple_dice(notation: &str) -> Option<(i32, i32)> {
 
 /// Parses arithmetic operations with dice
 fn parse_arithmetic_operation(notation: &str, operator: &str) -> Option<Vec<i32>> {
-    use rand::Rng;
-    let mut rng = rand::thread_rng();
-
     let parts: Vec<&str> = notation.split(&format!(" {operator} ")).collect();
     if parts.len() != 2 {
         return None;
@@ -642,41 +749,10 @@ fn parse_arithmetic_operation(notation: &str, operator: &str) -> Option<Vec<i32>
     let mut results = if let Some((count, sides, operation, op_count)) = parse_keep_dice(left_part)
     {
         // Handle keep/drop dice with arithmetic
-        let mut dice_results = Vec::new();
-
-        // Roll all the dice
-        for _ in 0..count {
-            dice_results.push(rng.gen_range(1..=sides));
-        }
-
-        // Sort and apply the operation
-        match operation {
-            DiceOperation::KeepHighest => {
-                dice_results.sort_unstable_by(|a, b| b.cmp(a)); // Sort descending (highest first)
-                dice_results.truncate(op_count);
-            }
-            DiceOperation::KeepLowest => {
-                dice_results.sort_unstable(); // Sort ascending (lowest first)
-                dice_results.truncate(op_count);
-            }
-            DiceOperation::DropHighest => {
-                dice_results.sort_unstable(); // Sort ascending (lowest first)
-                dice_results.truncate(count - op_count); // Keep all but the highest
-            }
-            DiceOperation::DropLowest => {
-                dice_results.sort_unstable_by(|a, b| b.cmp(a)); // Sort descending (highest first)
-                dice_results.truncate(count - op_count); // Keep all but the lowest
-            }
-        }
-
-        dice_results
+        roll_keep_drop_dice(count, sides, operation, op_count)
     } else if let Some((count, sides)) = parse_simple_dice(left_part) {
         // Handle simple dice with arithmetic
-        let mut dice_results = Vec::new();
-        for _ in 0..count {
-            dice_results.push(rng.gen_range(1..=sides));
-        }
-        dice_results
+        roll_simple_dice(count, sides)
     } else {
         return None;
     };
@@ -684,32 +760,7 @@ fn parse_arithmetic_operation(notation: &str, operator: &str) -> Option<Vec<i32>
     // Parse the right part - could be dice or a number
     if let Some((count, sides, operation, op_count)) = parse_keep_dice(right_part) {
         // Right side is keep/drop dice
-        let mut right_dice = Vec::new();
-
-        // Roll all the dice
-        for _ in 0..count {
-            right_dice.push(rng.gen_range(1..=sides));
-        }
-
-        // Sort and apply the operation
-        match operation {
-            DiceOperation::KeepHighest => {
-                right_dice.sort_unstable_by(|a, b| b.cmp(a));
-                right_dice.truncate(op_count);
-            }
-            DiceOperation::KeepLowest => {
-                right_dice.sort_unstable();
-                right_dice.truncate(op_count);
-            }
-            DiceOperation::DropHighest => {
-                right_dice.sort_unstable();
-                right_dice.truncate(count - op_count);
-            }
-            DiceOperation::DropLowest => {
-                right_dice.sort_unstable_by(|a, b| b.cmp(a));
-                right_dice.truncate(count - op_count);
-            }
-        }
+        let right_dice = roll_keep_drop_dice(count, sides, operation, op_count);
 
         // Apply the operation between left and right dice
         match operator {
@@ -740,10 +791,7 @@ fn parse_arithmetic_operation(notation: &str, operator: &str) -> Option<Vec<i32>
         }
     } else if let Some((count, sides)) = parse_simple_dice(right_part) {
         // Right side is simple dice
-        let mut right_dice = Vec::new();
-        for _ in 0..count {
-            right_dice.push(rng.gen_range(1..=sides));
-        }
+        let right_dice = roll_simple_dice(count, sides);
 
         // Apply the operation between left and right dice
         match operator {
