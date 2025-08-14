@@ -159,13 +159,21 @@ fn parse_and_roll_dice(notation: &str) -> Option<Vec<i32>> {
         
         // Sort and keep the specified dice
         match keep_type {
-            KeepType::Highest => {
+            DiceOperation::KeepHighest => {
                 results.sort_unstable_by(|a, b| b.cmp(a)); // Sort descending (highest first)
                 results.truncate(keep_count);
             }
-            KeepType::Lowest => {
+            DiceOperation::KeepLowest => {
                 results.sort_unstable(); // Sort ascending (lowest first)
                 results.truncate(keep_count);
+            }
+            DiceOperation::DropHighest => {
+                results.sort_unstable(); // Sort ascending (lowest first)
+                results.truncate(count - keep_count); // Keep all but the highest
+            }
+            DiceOperation::DropLowest => {
+                results.sort_unstable_by(|a, b| b.cmp(a)); // Sort descending (highest first)
+                results.truncate(count - keep_count); // Keep all but the lowest
             }
         }
         
@@ -185,13 +193,15 @@ fn parse_and_roll_dice(notation: &str) -> Option<Vec<i32>> {
 }
 
 #[derive(Debug, Clone, Copy)]
-enum KeepType {
-    Highest,
-    Lowest,
+enum DiceOperation {
+    KeepHighest,
+    KeepLowest,
+    DropHighest,
+    DropLowest,
 }
 
-/// Parses keep highest/lowest dice notation like "4d10K", "7d12K3", "3d6k", "100d6k99"
-fn parse_keep_dice(notation: &str) -> Option<(usize, i32, KeepType, usize)> {
+/// Parses keep/drop dice notation like "4d10K", "7d12K3", "3d6k", "6d8X", "5d10x3"
+fn parse_keep_dice(notation: &str) -> Option<(usize, i32, DiceOperation, usize)> {
     // Find 'd' first
     let d_pos = notation.find('d')?;
     let count_str = &notation[..d_pos];
@@ -204,33 +214,48 @@ fn parse_keep_dice(notation: &str) -> Option<(usize, i32, KeepType, usize)> {
         count_str.parse().ok()?
     };
     
-    // Find K or k
-    let (keep_type, keep_pos) = if let Some(pos) = rest.find('K') {
-        (KeepType::Highest, pos)
+    // Find K, k, X, or x
+    let (operation, op_pos) = if let Some(pos) = rest.find('K') {
+        (DiceOperation::KeepHighest, pos)
     } else if let Some(pos) = rest.find('k') {
-        (KeepType::Lowest, pos)
+        (DiceOperation::KeepLowest, pos)
+    } else if let Some(pos) = rest.find('X') {
+        (DiceOperation::DropHighest, pos)
+    } else if let Some(pos) = rest.find('x') {
+        (DiceOperation::DropLowest, pos)
     } else {
         return None;
     };
     
-    // Parse sides (before K/k)
-    let sides_str = &rest[..keep_pos];
+    // Parse sides (before operation character)
+    let sides_str = &rest[..op_pos];
     let sides = sides_str.parse().ok()?;
     
-    // Parse keep count (after K/k)
-    let keep_str = &rest[keep_pos + 1..];
-    let keep_count = if keep_str.is_empty() {
-        1 // Default to keeping 1 die if no number specified
+    // Parse operation count (after operation character)
+    let op_str = &rest[op_pos + 1..];
+    let op_count = if op_str.is_empty() {
+        1 // Default to operating on 1 die if no number specified
     } else {
-        keep_str.parse().ok()?
+        op_str.parse().ok()?
     };
     
-    // Validate that we're not trying to keep more dice than we roll
-    if keep_count > count {
-        return None;
+    // Validate the operation makes sense
+    match operation {
+        DiceOperation::KeepHighest | DiceOperation::KeepLowest => {
+            // Can't keep more dice than we roll
+            if op_count > count {
+                return None;
+            }
+        }
+        DiceOperation::DropHighest | DiceOperation::DropLowest => {
+            // Can't drop more dice than we roll, and must keep at least 1
+            if op_count >= count {
+                return None;
+            }
+        }
     }
     
-    Some((count, sides, keep_type, keep_count))
+    Some((count, sides, operation, op_count))
 }
 
 /// Parses simple dice notation like "4d10" or "d6"
@@ -267,9 +292,9 @@ fn parse_arithmetic_operation(notation: &str, operator: &str) -> Option<Vec<i32>
     let dice_part = parts[0].trim();
     let modifier_part = parts[1].trim();
 
-    // Parse the dice part (could be simple dice or keep dice)
-    let mut results = if let Some((count, sides, keep_type, keep_count)) = parse_keep_dice(dice_part) {
-        // Handle keep dice with arithmetic
+    // Parse the dice part (could be simple dice, keep dice, or drop dice)
+    let mut results = if let Some((count, sides, operation, op_count)) = parse_keep_dice(dice_part) {
+        // Handle keep/drop dice with arithmetic
         let mut dice_results = Vec::new();
         
         // Roll all the dice
@@ -277,15 +302,23 @@ fn parse_arithmetic_operation(notation: &str, operator: &str) -> Option<Vec<i32>
             dice_results.push(rng.gen_range(1..=sides));
         }
         
-        // Sort and keep the specified dice
-        match keep_type {
-            KeepType::Highest => {
+        // Sort and apply the operation
+        match operation {
+            DiceOperation::KeepHighest => {
                 dice_results.sort_unstable_by(|a, b| b.cmp(a)); // Sort descending (highest first)
-                dice_results.truncate(keep_count);
+                dice_results.truncate(op_count);
             }
-            KeepType::Lowest => {
+            DiceOperation::KeepLowest => {
                 dice_results.sort_unstable(); // Sort ascending (lowest first)
-                dice_results.truncate(keep_count);
+                dice_results.truncate(op_count);
+            }
+            DiceOperation::DropHighest => {
+                dice_results.sort_unstable(); // Sort ascending (lowest first)
+                dice_results.truncate(count - op_count); // Keep all but the highest
+            }
+            DiceOperation::DropLowest => {
+                dice_results.sort_unstable_by(|a, b| b.cmp(a)); // Sort descending (highest first)
+                dice_results.truncate(count - op_count); // Keep all but the lowest
             }
         }
         
@@ -922,6 +955,205 @@ mod tests {
             let results = result.unwrap();
             assert_eq!(results.len(), 1, "Should keep only the highest die");
             assert!(results[0] >= 1 && results[0] <= 20, "Result should be valid d20 roll");
+        }
+    }
+
+    mod drop_dice_operations {
+        use super::*;
+
+        #[test]
+        fn test_drop_highest_single_die() {
+            // Arrange
+            let notation = "6d8X";
+
+            // Act
+            let result = roll(notation);
+
+            // Assert
+            assert!(result.is_ok(), "Drop highest should work");
+            let results = result.unwrap();
+            assert_eq!(results.len(), 5, "Should keep 5 dice after dropping 1");
+            
+            // Results should be in ascending order (lowest first, highest dropped)
+            for i in 1..results.len() {
+                assert!(
+                    results[i - 1] <= results[i],
+                    "Results should be in ascending order: {:?}",
+                    results
+                );
+            }
+            
+            // All results should be valid d8 rolls
+            for &result in &results {
+                assert!(result >= 1 && result <= 8, "All results should be valid d8 rolls");
+            }
+        }
+
+        #[test]
+        fn test_drop_highest_multiple_dice() {
+            // Arrange
+            let notation = "5d10X3";
+
+            // Act
+            let result = roll(notation);
+
+            // Assert
+            assert!(result.is_ok(), "Drop highest multiple should work");
+            let results = result.unwrap();
+            assert_eq!(results.len(), 2, "Should keep 2 dice after dropping 3");
+            
+            // Results should be in ascending order (lowest kept)
+            for i in 1..results.len() {
+                assert!(
+                    results[i - 1] <= results[i],
+                    "Results should be in ascending order: {:?}",
+                    results
+                );
+            }
+            
+            // All results should be valid d10 rolls
+            for &result in &results {
+                assert!(result >= 1 && result <= 10, "All results should be valid d10 rolls");
+            }
+        }
+
+        #[test]
+        fn test_drop_lowest_single_die() {
+            // Arrange
+            let notation = "6d8x";
+
+            // Act
+            let result = roll(notation);
+
+            // Assert
+            assert!(result.is_ok(), "Drop lowest should work");
+            let results = result.unwrap();
+            assert_eq!(results.len(), 5, "Should keep 5 dice after dropping 1");
+            
+            // Results should be in descending order (highest first, lowest dropped)
+            for i in 1..results.len() {
+                assert!(
+                    results[i - 1] >= results[i],
+                    "Results should be in descending order: {:?}",
+                    results
+                );
+            }
+            
+            // All results should be valid d8 rolls
+            for &result in &results {
+                assert!(result >= 1 && result <= 8, "All results should be valid d8 rolls");
+            }
+        }
+
+        #[test]
+        fn test_drop_lowest_multiple_dice() {
+            // Arrange
+            let notation = "5d10x3";
+
+            // Act
+            let result = roll(notation);
+
+            // Assert
+            assert!(result.is_ok(), "Drop lowest multiple should work");
+            let results = result.unwrap();
+            assert_eq!(results.len(), 2, "Should keep 2 dice after dropping 3");
+            
+            // Results should be in descending order (highest kept)
+            for i in 1..results.len() {
+                assert!(
+                    results[i - 1] >= results[i],
+                    "Results should be in descending order: {:?}",
+                    results
+                );
+            }
+            
+            // All results should be valid d10 rolls
+            for &result in &results {
+                assert!(result >= 1 && result <= 10, "All results should be valid d10 rolls");
+            }
+        }
+
+        #[test]
+        fn test_drop_highest_with_arithmetic() {
+            // Arrange
+            let notation = "6d6X2 + 5";
+
+            // Act
+            let result = roll(notation);
+
+            // Assert
+            assert!(result.is_ok(), "Drop highest with arithmetic should work");
+            let results = result.unwrap();
+            assert_eq!(results.len(), 5, "Should have 4 kept dice + 1 modifier");
+            
+            // Last element should be the modifier
+            assert_eq!(results[4], 5, "Last element should be the +5 modifier");
+            
+            // First four should be dice results in ascending order (lowest kept)
+            for i in 1..4 {
+                assert!(
+                    results[i - 1] <= results[i],
+                    "Kept dice should be in ascending order: {:?}",
+                    results
+                );
+            }
+        }
+
+        #[test]
+        fn test_character_generation_4d6_drop_lowest() {
+            // Arrange - This is a common D&D character generation method
+            let notation = "4d6x";
+
+            // Act
+            let result = roll(notation);
+
+            // Assert
+            assert!(result.is_ok(), "4d6 drop lowest should work");
+            let results = result.unwrap();
+            assert_eq!(results.len(), 3, "Should keep 3 dice after dropping lowest");
+            
+            // Results should be in descending order (highest kept)
+            for i in 1..results.len() {
+                assert!(
+                    results[i - 1] >= results[i],
+                    "Results should be in descending order: {:?}",
+                    results
+                );
+            }
+            
+            // All results should be valid d6 rolls
+            for &result in &results {
+                assert!(result >= 1 && result <= 6, "All results should be valid d6 rolls");
+            }
+        }
+
+        #[test]
+        fn test_drop_consistency_over_multiple_rolls() {
+            // Arrange
+            let notation = "8d6X3";
+
+            // Act & Assert - Test multiple times to ensure consistency
+            for _ in 0..20 {
+                let result = roll(notation);
+                assert!(result.is_ok(), "Drop should work consistently");
+                
+                let results = result.unwrap();
+                assert_eq!(results.len(), 5, "Should always keep exactly 5 dice");
+                
+                // Should be in ascending order (lowest kept)
+                for i in 1..results.len() {
+                    assert!(
+                        results[i - 1] <= results[i],
+                        "Results should always be in ascending order: {:?}",
+                        results
+                    );
+                }
+                
+                // All should be valid d6 rolls
+                for &result in &results {
+                    assert!(result >= 1 && result <= 6, "All results should be valid d6 rolls");
+                }
+            }
         }
     }
 

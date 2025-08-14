@@ -143,6 +143,14 @@ fn show_examples() {
     println!("  rkdice 2d20k      # Disadvantage roll (D&D 5e)");
     println!("  rkdice '4d6K3 + 2' # Keep highest 3 of 4d6, then add 2");
     println!();
+    println!("Drop highest (X) and drop lowest (x):");
+    println!("  rkdice 6d8X       # Roll 6d8 and drop the highest");
+    println!("  rkdice 5d10X3     # Roll 5d10 and drop the highest 3");
+    println!("  rkdice 6d8x       # Roll 6d8 and drop the lowest");
+    println!("  rkdice 5d10x3     # Roll 5d10 and drop the lowest 3");
+    println!("  rkdice 4d6x       # Character generation (drop lowest)");
+    println!("  rkdice '6d6X2 + 5' # Drop highest 2 of 6d6, then add 5");
+    println!();
     println!("Using subcommands:");
     println!("  rkdice roll '2d6 + 3' -n 5    # Roll 5 times");
     println!("  rkdice roll '4d6K3' -n 3      # Roll multiple times");
