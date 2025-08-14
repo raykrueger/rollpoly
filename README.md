@@ -89,3 +89,7 @@ match the comparison is rolled.
 d20!>10: Roll a d20 and explode every time a number higher than 10 is rolled
 3d12!<2: Roll 3d12 and explode every time a 1 is rolled.
 ```
+
+## License
+
+This project is licensed under the Apache License 2.0 - see the [LICENSE](LICENSE) file for details.

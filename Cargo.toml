@@ -2,6 +2,12 @@
 name = "rkdice"
 version = "0.1.0"
 edition = "2024"
+authors = ["rkrueger"]
+license = "Apache-2.0"
+description = "A simple Rust application to roll dice in the terminal"
+repository = "https://github.com/rkrueger/rkdice"
+keywords = ["dice", "gaming", "cli", "terminal"]
+categories = ["command-line-utilities", "games"]
 
 [dependencies]
 
