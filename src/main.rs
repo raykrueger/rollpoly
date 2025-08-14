@@ -134,6 +134,12 @@ fn show_examples() {
     println!("  rkdice '5d6 / 3'  # Roll 5d6 and divide by 3");
     println!("  rkdice '4d8 // 2' # Roll 4d8 and floor divide by 2");
     println!();
+    println!("Dice-to-dice operations:");
+    println!("  rkdice '2d12 + 1d6' # Daggerheart with Advantage");
+    println!("  rkdice '2d12 - 1d6' # Daggerheart with Disadvantage");
+    println!("  rkdice '3d6 + 2d4'  # Multiple dice pools combined");
+    println!("  rkdice '4d6K3 + 1d4' # Keep highest 3 of 4d6, add 1d4");
+    println!();
     println!("Keep highest (K) and keep lowest (k):");
     println!("  rkdice 4d10K      # Roll 4d10 and keep only the highest");
     println!("  rkdice 7d12K3     # Roll 7d12 and keep the highest 3");

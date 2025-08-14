@@ -289,11 +289,11 @@ fn parse_arithmetic_operation(notation: &str, operator: &str) -> Option<Vec<i32>
         return None;
     }
 
-    let dice_part = parts[0].trim();
-    let modifier_part = parts[1].trim();
+    let left_part = parts[0].trim();
+    let right_part = parts[1].trim();
 
-    // Parse the dice part (could be simple dice, keep dice, or drop dice)
-    let mut results = if let Some((count, sides, operation, op_count)) = parse_keep_dice(dice_part) {
+    // Parse the left part (could be simple dice, keep dice, or drop dice)
+    let mut results = if let Some((count, sides, operation, op_count)) = parse_keep_dice(left_part) {
         // Handle keep/drop dice with arithmetic
         let mut dice_results = Vec::new();
         
@@ -323,7 +323,7 @@ fn parse_arithmetic_operation(notation: &str, operator: &str) -> Option<Vec<i32>
         }
         
         dice_results
-    } else if let Some((count, sides)) = parse_simple_dice(dice_part) {
+    } else if let Some((count, sides)) = parse_simple_dice(left_part) {
         // Handle simple dice with arithmetic
         let mut dice_results = Vec::new();
         for _ in 0..count {
@@ -334,8 +334,99 @@ fn parse_arithmetic_operation(notation: &str, operator: &str) -> Option<Vec<i32>
         return None;
     };
 
-    // Parse and add the modifier
-    if let Ok(modifier_value) = modifier_part.parse::<i32>() {
+    // Parse the right part - could be dice or a number
+    if let Some((count, sides, operation, op_count)) = parse_keep_dice(right_part) {
+        // Right side is keep/drop dice
+        let mut right_dice = Vec::new();
+        
+        // Roll all the dice
+        for _ in 0..count {
+            right_dice.push(rng.gen_range(1..=sides));
+        }
+        
+        // Sort and apply the operation
+        match operation {
+            DiceOperation::KeepHighest => {
+                right_dice.sort_unstable_by(|a, b| b.cmp(a));
+                right_dice.truncate(op_count);
+            }
+            DiceOperation::KeepLowest => {
+                right_dice.sort_unstable();
+                right_dice.truncate(op_count);
+            }
+            DiceOperation::DropHighest => {
+                right_dice.sort_unstable();
+                right_dice.truncate(count - op_count);
+            }
+            DiceOperation::DropLowest => {
+                right_dice.sort_unstable_by(|a, b| b.cmp(a));
+                right_dice.truncate(count - op_count);
+            }
+        }
+        
+        // Apply the operation between left and right dice
+        match operator {
+            "+" => results.extend(right_dice),
+            "-" => {
+                // For subtraction, negate the right dice values
+                results.extend(right_dice.iter().map(|&x| -x));
+            }
+            "*" => {
+                // For multiplication, multiply each left die by each right die (unusual but possible)
+                let left_sum: i32 = results.iter().sum();
+                let right_sum: i32 = right_dice.iter().sum();
+                results.clear();
+                results.push(left_sum * right_sum);
+            }
+            "/" | "//" => {
+                // For division, divide left sum by right sum
+                let left_sum: i32 = results.iter().sum();
+                let right_sum: i32 = right_dice.iter().sum();
+                if right_sum == 0 {
+                    return None; // Division by zero
+                }
+                results.clear();
+                let result = left_sum / right_sum; // Floor division for integers
+                results.push(result);
+            }
+            _ => return None,
+        }
+    } else if let Some((count, sides)) = parse_simple_dice(right_part) {
+        // Right side is simple dice
+        let mut right_dice = Vec::new();
+        for _ in 0..count {
+            right_dice.push(rng.gen_range(1..=sides));
+        }
+        
+        // Apply the operation between left and right dice
+        match operator {
+            "+" => results.extend(right_dice),
+            "-" => {
+                // For subtraction, negate the right dice values
+                results.extend(right_dice.iter().map(|&x| -x));
+            }
+            "*" => {
+                // For multiplication, multiply sums
+                let left_sum: i32 = results.iter().sum();
+                let right_sum: i32 = right_dice.iter().sum();
+                results.clear();
+                results.push(left_sum * right_sum);
+            }
+            "/" | "//" => {
+                // For division, divide sums
+                let left_sum: i32 = results.iter().sum();
+                let right_sum: i32 = right_dice.iter().sum();
+                if right_sum == 0 {
+                    return None; // Division by zero
+                }
+                results.clear();
+                let result = left_sum / right_sum; // Floor division for integers
+                results.push(result);
+            }
+            _ => return None,
+        }
+    } else if let Ok(modifier_value) = right_part.parse::<i32>() {
+        // Right side is a number (existing functionality)
         match operator {
             "-" | "//" => results.push(-modifier_value), // Negative to distinguish from regular division
             "+" | "*" | "/" => results.push(modifier_value),
@@ -1153,6 +1244,144 @@ mod tests {
                 for &result in &results {
                     assert!(result >= 1 && result <= 6, "All results should be valid d6 rolls");
                 }
+            }
+        }
+    }
+
+    mod dice_to_dice_operations {
+        use super::*;
+
+        #[test]
+        fn test_dice_plus_dice() {
+            // Arrange
+            let notation = "2d6 + 1d4";
+
+            // Act
+            let result = roll(notation);
+
+            // Assert
+            assert!(result.is_ok(), "Dice + dice should work");
+            let results = result.unwrap();
+            assert_eq!(results.len(), 3, "Should have 2d6 + 1d4 = 3 dice");
+            
+            // First two should be d6 results
+            for i in 0..2 {
+                assert!(results[i] >= 1 && results[i] <= 6, "d6 results should be 1-6");
+            }
+            
+            // Last should be d4 result
+            assert!(results[2] >= 1 && results[2] <= 4, "d4 result should be 1-4");
+        }
+
+        #[test]
+        fn test_dice_minus_dice() {
+            // Arrange
+            let notation = "2d12 - 1d6";
+
+            // Act
+            let result = roll(notation);
+
+            // Assert
+            assert!(result.is_ok(), "Dice - dice should work");
+            let results = result.unwrap();
+            assert_eq!(results.len(), 3, "Should have 2d12 - 1d6 = 3 values");
+            
+            // First two should be d12 results
+            for i in 0..2 {
+                assert!(results[i] >= 1 && results[i] <= 12, "d12 results should be 1-12");
+            }
+            
+            // Last should be negative d6 result
+            assert!(results[2] >= -6 && results[2] <= -1, "Subtracted d6 should be -6 to -1");
+        }
+
+        #[test]
+        fn test_daggerheart_advantage_roll() {
+            // Arrange - Daggerheart with Advantage
+            let notation = "2d12 + 1d6";
+
+            // Act
+            let result = roll(notation);
+
+            // Assert
+            assert!(result.is_ok(), "Daggerheart Advantage roll should work");
+            let results = result.unwrap();
+            assert_eq!(results.len(), 3, "Should have 2d12 + 1d6 = 3 dice");
+            
+            // Check ranges
+            let sum: i32 = results.iter().sum();
+            assert!(sum >= 3 && sum <= 30, "Daggerheart Advantage sum should be 3-30");
+        }
+
+        #[test]
+        fn test_daggerheart_disadvantage_roll() {
+            // Arrange - Daggerheart with Disadvantage
+            let notation = "2d12 - 1d6";
+
+            // Act
+            let result = roll(notation);
+
+            // Assert
+            assert!(result.is_ok(), "Daggerheart Disadvantage roll should work");
+            let results = result.unwrap();
+            assert_eq!(results.len(), 3, "Should have 2d12 - 1d6 = 3 values");
+            
+            // Check ranges: 2d12 (2-24) - 1d6 (1-6) = -4 to 23
+            let sum: i32 = results.iter().sum();
+            assert!(sum >= -4 && sum <= 23, "Daggerheart Disadvantage sum should be -4 to 23, got {}", sum);
+        }
+
+        #[test]
+        fn test_keep_dice_plus_dice() {
+            // Arrange
+            let notation = "4d6K3 + 1d4";
+
+            // Act
+            let result = roll(notation);
+
+            // Assert
+            assert!(result.is_ok(), "Keep dice + dice should work");
+            let results = result.unwrap();
+            assert_eq!(results.len(), 4, "Should have 3 kept d6 + 1d4 = 4 dice");
+            
+            // First three should be d6 results in descending order
+            for i in 0..3 {
+                assert!(results[i] >= 1 && results[i] <= 6, "Kept d6 results should be 1-6");
+            }
+            for i in 1..3 {
+                assert!(
+                    results[i - 1] >= results[i],
+                    "Kept dice should be in descending order"
+                );
+            }
+            
+            // Last should be d4 result
+            assert!(results[3] >= 1 && results[3] <= 4, "d4 result should be 1-4");
+        }
+
+        #[test]
+        fn test_dice_to_dice_consistency() {
+            // Arrange
+            let notation = "3d6 + 2d4";
+
+            // Act & Assert - Test multiple times to ensure consistency
+            for _ in 0..20 {
+                let result = roll(notation);
+                assert!(result.is_ok(), "Dice + dice should work consistently");
+                
+                let results = result.unwrap();
+                assert_eq!(results.len(), 5, "Should always have 5 dice");
+                
+                // Check ranges
+                for i in 0..3 {
+                    assert!(results[i] >= 1 && results[i] <= 6, "d6 results should be 1-6");
+                }
+                for i in 3..5 {
+                    assert!(results[i] >= 1 && results[i] <= 4, "d4 results should be 1-4");
+                }
+                
+                let sum: i32 = results.iter().sum();
+                assert!(sum >= 5 && sum <= 26, "Sum should be in valid range");
             }
         }
     }
