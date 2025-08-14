@@ -168,6 +168,13 @@ fn show_examples() {
     println!("  rkdice '4d20<5f>19' # Successes <5, failures >19");
     println!("  rkdice '6d6>4f<2'   # Advanced dice pool mechanics");
     println!();
+    println!("Exploding dice (!):");
+    println!("  rkdice '2d6!'       # Explode on max (6s)");
+    println!("  rkdice '4d6!6'      # Explode on 6s (Shadowrun)");
+    println!("  rkdice '3d10!10'    # Explode on 10s");
+    println!("  rkdice 'd20!>15'    # Explode on 16+ (Rule of 6 variant)");
+    println!("  rkdice '2d12!<3'    # Explode on 1s and 2s");
+    println!();
     println!("Using subcommands:");
     println!("  rkdice roll '2d6 + 3' -n 5    # Roll 5 times");
     println!("  rkdice roll '4d6K3' -n 3      # Roll multiple times");

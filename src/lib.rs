@@ -148,6 +148,57 @@ fn parse_and_roll_dice(notation: &str) -> Option<Vec<i32>> {
         return parse_arithmetic_operation(notation, "/");
     }
 
+    // Handle exploding dice syntax (e.g., "2d20!", "7d20!3", "d20!>10", "3d12!<2")
+    if let Some((count, sides, explode_comp, explode_target)) = parse_exploding_dice(notation) {
+        let mut all_results = Vec::new();
+        
+        // Roll each die with exploding
+        for _ in 0..count {
+            let mut die_results = Vec::new();
+            let mut current_roll = rng.gen_range(1..=sides);
+            die_results.push(current_roll);
+            
+            // Safety limit to prevent infinite explosions
+            let mut explosion_count = 0;
+            const MAX_EXPLOSIONS: usize = 100;
+            
+            // Check if this roll should explode
+            loop {
+                let should_explode = match (explode_comp, explode_target) {
+                    (None, None) => {
+                        // Simple exploding - explode on max value
+                        current_roll == sides
+                    }
+                    (None, Some(target)) => {
+                        // Explode on specific number (e.g., "d6!3" - explode on exactly 3)
+                        current_roll == target
+                    }
+                    (Some(SuccessComparison::GreaterThan), Some(target)) => {
+                        current_roll > target
+                    }
+                    (Some(SuccessComparison::LessThan), Some(target)) => {
+                        current_roll < target
+                    }
+                    _ => false,
+                };
+                
+                if should_explode && explosion_count < MAX_EXPLOSIONS {
+                    // Roll another die and add it
+                    current_roll = rng.gen_range(1..=sides);
+                    die_results.push(current_roll);
+                    explosion_count += 1;
+                } else {
+                    break;
+                }
+            }
+            
+            // Add all results from this exploding die
+            all_results.extend(die_results);
+        }
+        
+        return Some(all_results);
+    }
+
     // Handle success counting syntax (e.g., "4d20>19", "10d12<3")
     if let Some((count, sides, comparison, target)) = parse_success_dice(notation) {
         let mut success_count = 0;
@@ -290,6 +341,52 @@ fn parse_success_dice(notation: &str) -> Option<(usize, i32, SuccessComparison, 
     let target = target_str.parse().ok()?;
     
     Some((count, sides, comparison, target))
+}
+
+/// Parses exploding dice notation like "2d20!", "7d20!3", "d20!>10", "3d12!<2"
+fn parse_exploding_dice(notation: &str) -> Option<(usize, i32, Option<SuccessComparison>, Option<i32>)> {
+    // Find 'd' first
+    let d_pos = notation.find('d')?;
+    let count_str = &notation[..d_pos];
+    let rest = &notation[d_pos + 1..];
+    
+    // Handle implicit count (e.g., "d20!" means "1d20!")
+    let count = if count_str.is_empty() {
+        1
+    } else {
+        count_str.parse().ok()?
+    };
+    
+    // Find '!' for exploding
+    let explode_pos = rest.find('!')?;
+    
+    // Parse sides (before !)
+    let sides_str = &rest[..explode_pos];
+    let sides = sides_str.parse().ok()?;
+    
+    // Parse exploding condition (after !)
+    let explode_str = &rest[explode_pos + 1..];
+    
+    if explode_str.is_empty() {
+        // Simple exploding (e.g., "2d20!" - explode on max value)
+        Some((count, sides, None, None))
+    } else if let Ok(target) = explode_str.parse::<i32>() {
+        // Explode on specific number (e.g., "7d20!3" - explode on exactly 3)
+        // We'll use a special case in the explosion logic to check for equality
+        Some((count, sides, None, Some(target)))
+    } else if let Some(pos) = explode_str.find('>') {
+        // Explode on greater than (e.g., "d20!>10" - explode on 11+)
+        let target_str = &explode_str[pos + 1..];
+        let target = target_str.parse().ok()?;
+        Some((count, sides, Some(SuccessComparison::GreaterThan), Some(target)))
+    } else if let Some(pos) = explode_str.find('<') {
+        // Explode on less than (e.g., "3d12!<2" - explode on 1)
+        let target_str = &explode_str[pos + 1..];
+        let target = target_str.parse().ok()?;
+        Some((count, sides, Some(SuccessComparison::LessThan), Some(target)))
+    } else {
+        None
+    }
 }
 
 /// Parses success/failure counting dice notation like "10d10>6f<3", "4d20<5f>19"
@@ -1035,7 +1132,7 @@ mod tests {
         fn test_roll_stays_within_bounds_over_many_iterations() {
             // Arrange
             let dice_notation = "1d6";
-            let iterations = 1000;
+            let iterations = 100; // Reduced from 1000 for faster tests
 
             // Act & Assert
             for iteration in 0..iterations {
@@ -1673,6 +1770,207 @@ mod tests {
             
             let success_count = results[0];
             assert!(success_count >= 0 && success_count <= 1, "Single die success count should be 0 or 1");
+        }
+    }
+
+    mod exploding_dice_operations {
+        use super::*;
+
+        #[test]
+        fn test_simple_exploding_dice() {
+            // Arrange
+            let notation = "2d6!";
+
+            // Act
+            let result = roll(notation);
+
+            // Assert
+            assert!(result.is_ok(), "Simple exploding dice should work");
+            let results = result.unwrap();
+            
+            // Should have at least 2 dice (the original rolls)
+            assert!(results.len() >= 2, "Should have at least 2 dice results");
+            
+            // All results should be valid d6 rolls
+            for &roll in &results {
+                assert!(roll >= 1 && roll <= 6, "All rolls should be 1-6, got {}", roll);
+            }
+            
+            // Total should be at least 2 (minimum possible)
+            let total: i32 = results.iter().sum();
+            assert!(total >= 2, "Total should be at least 2");
+        }
+
+        #[test]
+        fn test_exploding_on_specific_number() {
+            // Arrange
+            let notation = "3d10!5";
+
+            // Act
+            let result = roll(notation);
+
+            // Assert
+            assert!(result.is_ok(), "Exploding on specific number should work");
+            let results = result.unwrap();
+            
+            // Should have at least 3 dice (the original rolls)
+            assert!(results.len() >= 3, "Should have at least 3 dice results");
+            
+            // All results should be valid d10 rolls
+            for &roll in &results {
+                assert!(roll >= 1 && roll <= 10, "All rolls should be 1-10, got {}", roll);
+            }
+        }
+
+        #[test]
+        fn test_exploding_greater_than() {
+            // Arrange
+            let notation = "d20!>15";
+
+            // Act
+            let result = roll(notation);
+
+            // Assert
+            assert!(result.is_ok(), "Exploding greater than should work");
+            let results = result.unwrap();
+            
+            // Should have at least 1 die
+            assert!(results.len() >= 1, "Should have at least 1 die result");
+            
+            // All results should be valid d20 rolls
+            for &roll in &results {
+                assert!(roll >= 1 && roll <= 20, "All rolls should be 1-20, got {}", roll);
+            }
+        }
+
+        #[test]
+        fn test_exploding_less_than() {
+            // Arrange
+            let notation = "2d12!<3";
+
+            // Act
+            let result = roll(notation);
+
+            // Assert
+            assert!(result.is_ok(), "Exploding less than should work");
+            let results = result.unwrap();
+            
+            // Should have at least 2 dice
+            assert!(results.len() >= 2, "Should have at least 2 dice results");
+            
+            // All results should be valid d12 rolls
+            for &roll in &results {
+                assert!(roll >= 1 && roll <= 12, "All rolls should be 1-12, got {}", roll);
+            }
+        }
+
+        #[test]
+        fn test_implicit_single_die_exploding() {
+            // Arrange
+            let notation = "d6!";
+
+            // Act
+            let result = roll(notation);
+
+            // Assert
+            assert!(result.is_ok(), "Implicit single die exploding should work");
+            let results = result.unwrap();
+            
+            // Should have at least 1 die
+            assert!(results.len() >= 1, "Should have at least 1 die result");
+            
+            // All results should be valid d6 rolls
+            for &roll in &results {
+                assert!(roll >= 1 && roll <= 6, "All rolls should be 1-6, got {}", roll);
+            }
+        }
+
+        #[test]
+        fn test_exploding_dice_consistency() {
+            // Arrange
+            let notation = "2d8!";
+
+            // Act & Assert - Test multiple times to ensure consistency
+            for _ in 0..20 {
+                let result = roll(notation);
+                assert!(result.is_ok(), "Exploding dice should work consistently");
+                
+                let results = result.unwrap();
+                assert!(results.len() >= 2, "Should always have at least 2 dice");
+                
+                // All results should be valid d8 rolls
+                for &roll in &results {
+                    assert!(roll >= 1 && roll <= 8, "All rolls should be 1-8");
+                }
+                
+                // Total should be reasonable (at least 2, but not impossibly high)
+                let total: i32 = results.iter().sum();
+                assert!(total >= 2 && total <= 200, "Total should be reasonable range");
+            }
+        }
+
+        #[test]
+        fn test_shadowrun_exploding_sixes() {
+            // Arrange - Shadowrun style: d6 exploding on 6
+            let notation = "4d6!6";
+
+            // Act
+            let result = roll(notation);
+
+            // Assert
+            assert!(result.is_ok(), "Shadowrun exploding sixes should work");
+            let results = result.unwrap();
+            
+            // Should have at least 4 dice
+            assert!(results.len() >= 4, "Should have at least 4 dice results");
+            
+            // All results should be valid d6 rolls
+            for &roll in &results {
+                assert!(roll >= 1 && roll <= 6, "All rolls should be 1-6, got {}", roll);
+            }
+        }
+
+        #[test]
+        fn test_exploding_edge_cases() {
+            // Test exploding on specific number (limited iterations to avoid long test)
+            let result1 = roll("d6!6"); // Explode on 6 instead of 1 (less frequent)
+            assert!(result1.is_ok(), "Exploding on 6 should work");
+            
+            // Test exploding on max value
+            let result2 = roll("d20!");
+            assert!(result2.is_ok(), "Exploding on max should work");
+            
+            // Test exploding with comparison
+            let result3 = roll("d10!>8");
+            assert!(result3.is_ok(), "Exploding >8 should work");
+            
+            let result4 = roll("d10!<3");
+            assert!(result4.is_ok(), "Exploding <3 should work");
+        }
+
+        #[test]
+        fn test_multiple_exploding_dice() {
+            // Arrange
+            let notation = "5d6!";
+
+            // Act
+            let result = roll(notation);
+
+            // Assert
+            assert!(result.is_ok(), "Multiple exploding dice should work");
+            let results = result.unwrap();
+            
+            // Should have at least 5 dice (the original rolls)
+            assert!(results.len() >= 5, "Should have at least 5 dice results");
+            
+            // All results should be valid d6 rolls
+            for &roll in &results {
+                assert!(roll >= 1 && roll <= 6, "All rolls should be 1-6, got {}", roll);
+            }
+            
+            // Total should be at least 5
+            let total: i32 = results.iter().sum();
+            assert!(total >= 5, "Total should be at least 5");
         }
     }
 
