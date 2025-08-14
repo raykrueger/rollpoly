@@ -118,23 +118,18 @@ fn roll_dice(notation: &str, repeat: usize, verbose: bool) -> Result<()> {
         let results = rkdice::roll(notation)
             .with_context(|| format!("Invalid dice notation: '{notation}'"))?;
 
-        if repeat > 1 {
-            print!("Roll {i}: ");
-        }
+        let sum = results.iter().sum::<i32>();
 
-        if verbose {
-            println!(
-                "Individual results: {:?}, Sum: {}",
-                results,
-                results.iter().sum::<i32>()
-            );
+        if repeat > 1 {
+            if verbose {
+                println!("Roll {i}: {notation} → {results:?} | Sum: {sum}");
+            } else {
+                println!("Roll {i}: {results:?} | Sum: {sum}");
+            }
+        } else if verbose {
+            println!("{notation} → {results:?} | Sum: {sum}");
         } else {
-            println!(
-                "{}: {:?} (sum: {})",
-                notation,
-                results,
-                results.iter().sum::<i32>()
-            );
+            println!("Results: {results:?} | Sum: {sum}");
         }
     }
 
