@@ -252,9 +252,6 @@ cargo clippy -- -D warnings
 #### Performance Optimization
 
 ```bash
-# Run benchmarks (if added)
-cargo bench
-
 # Profile with flamegraph
 cargo install flamegraph
 cargo flamegraph --bin rollpoly -- "1000d6"
