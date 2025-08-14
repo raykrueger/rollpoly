@@ -49,11 +49,11 @@ of dice or by nothing to indicate dropping just one.
 
 #### Drop Lowest (x):
 
-
 ```
 6d8x: Roll 6d8 and drop the lowest
 5d10x3 Roll 5d10 and drop the lowest 3
 ```
+
 #### Count Successes (> or <):
 
 Counts the number of rolls above or below a certain value.
@@ -262,6 +262,7 @@ cargo flamegraph --bin rkdice -- "1000d6"
 #### `scripts/full-checks.sh`
 
 Comprehensive quality assurance script that runs:
+
 - All tests (unit, integration, doc)
 - Clippy linting with zero warnings
 - Code formatting checks (auto-fixes)
@@ -328,7 +329,7 @@ Almost all of this code base was developed by AI Tooling.
 
 ### Steering
 
-All AI tooling must follow the rules established in steering documents found in .amazonq/rules/steering/*.md
+All AI tooling must follow the rules established in steering documents found in .amazonq/rules/steering/\*.md
 
 ## License
 
