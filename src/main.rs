@@ -122,14 +122,16 @@ fn roll_dice(notation: &str, repeat: usize, verbose: bool) -> Result<()> {
 
         if repeat > 1 {
             if verbose {
-                println!("Roll {i}: {notation} → {results:?} | Sum: {sum}");
+                println!(
+                    "Roll {i}: You rolled a {sum} with {notation} using dice {results:?}"
+                );
             } else {
-                println!("Roll {i}: {results:?} | Sum: {sum}");
+                println!("Roll {i}: You rolled a {sum} with dice {results:?}");
             }
         } else if verbose {
-            println!("{notation} → {results:?} | Sum: {sum}");
+            println!("You rolled a {sum} with {notation} using dice {results:?}");
         } else {
-            println!("Results: {results:?} | Sum: {sum}");
+            println!("You rolled a {sum} with dice {results:?}");
         }
     }
 
