@@ -1,15 +1,39 @@
 [package]
 name = "rkdice"
 version = "0.1.0"
-edition = "2024"
+edition = "2021"
+rust-version = "1.70"
 authors = ["rkrueger"]
 license = "Apache-2.0"
 description = "A simple Rust application to roll dice in the terminal"
+homepage = "https://github.com/rkrueger/rkdice"
 repository = "https://github.com/rkrueger/rkdice"
+documentation = "https://docs.rs/rkdice"
+readme = "README.md"
 keywords = ["dice", "gaming", "cli", "terminal"]
 categories = ["command-line-utilities", "games"]
 
 [dependencies]
+# CLI parsing with derive macros
+clap = { version = "4.0", features = ["derive"] }
+# Flexible error handling for applications
+anyhow = "1.0"
+# Structured error types for libraries
+thiserror = "1.0"
+# Random number generation
+rand = "0.8"
+
+[dev-dependencies]
+criterion = "0.5"
 
 [lib]
 path = "src/lib.rs"
+
+[lints.clippy]
+all = "warn"
+pedantic = "warn"
+nursery = "warn"
+cargo = "warn"
+
+[features]
+default = []
