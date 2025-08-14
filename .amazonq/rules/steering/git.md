@@ -103,22 +103,6 @@ chore/update-dependencies
 - Don't wait until the end of the day to commit
 - Use `git add -p` to stage partial changes when needed
 
-### Before Committing
-Always run these checks before committing:
-```bash
-# Run tests
-cargo test
-
-# Check code quality
-cargo clippy
-
-# Format code
-cargo fmt
-
-# Check for compilation errors
-cargo check
-```
-
 ### Staging Best Practices
 ```bash
 # Review changes before staging

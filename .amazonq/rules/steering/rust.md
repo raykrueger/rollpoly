@@ -184,6 +184,24 @@ mod tests {
 }
 ```
 
+## Pre-commit Checks
+
+Always run these checks before committing:
+
+```bash
+# Run tests
+cargo test
+
+# Check code quality
+cargo clippy
+
+# Format code
+cargo fmt
+
+# Check for compilation errors
+cargo check
+```
+
 ## Performance Tips
 
 - **Use `&str` over `String`** for parameters
