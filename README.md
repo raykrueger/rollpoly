@@ -19,7 +19,8 @@ d4 * 3: Same as above, leaving out the number of dice will default to 1
 
 #### Keep Highest (K):
 
-Used to (K)eep the highest roll. Can be followed by a number to keep that number of dice or by nothing to indicate keeping only one.
+Used to (K)eep the highest roll. Can be followed by a number to keep that number
+of dice or by nothing to indicate keeping only one.
 
 ```
 4d10K: Roll 4d10 and keep only the highest roll
@@ -92,7 +93,9 @@ d20!>10: Roll a d20 and explode every time a number higher than 10 is rolled
 
 #### Rerolling Dice (r/R):
 
-Rerolling allows you to roll certain dice again based on specific conditions, replacing the original result with the new roll. Use lowercase 'r' for rerolling once, or uppercase 'R' to keep rerolling until the condition is no longer met.
+Rerolling allows you to roll certain dice again based on specific conditions,
+replacing the original result with the new roll. Use lowercase 'r' for rerolling
+once, or uppercase 'R' to keep rerolling until the condition is no longer met.
 
 ```
 4d6r1: Roll 4d6 and reroll any 1s once (D&D Great Weapon Fighting)
