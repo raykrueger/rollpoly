@@ -175,6 +175,12 @@ fn show_examples() {
     println!("  rkdice 'd20!>15'    # Explode on 16+ (Rule of 6 variant)");
     println!("  rkdice '2d12!<3'    # Explode on 1s and 2s");
     println!();
+    println!("Rerolling Dice (r/R):");
+    println!("  rkdice '4d6r1'      # Reroll any 1s once (Great Weapon Fighting)");
+    println!("  rkdice '2d6r<3'     # Reroll anything under 3 once");
+    println!("  rkdice '3d8R1'      # Keep rerolling 1s until no 1s remain");
+    println!("  rkdice '4d10R<3'    # Keep rerolling anything under 3");
+    println!();
     println!("Using subcommands:");
     println!("  rkdice roll '2d6 + 3' -n 5    # Roll 5 times");
     println!("  rkdice roll '4d6K3' -n 3      # Roll multiple times");

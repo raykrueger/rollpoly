@@ -283,6 +283,42 @@ fn parse_and_roll_dice(notation: &str) -> Option<Vec<i32>> {
         return Some(results);
     }
 
+    // Handle rerolling dice syntax (e.g., "4d6r1", "2d6R<3")
+    if let Some((count, sides, reroll_type, reroll_condition)) = parse_reroll_dice(notation) {
+        let mut results = Vec::new();
+        for _ in 0..count {
+            let mut current_roll = rng.gen_range(1..=sides);
+            if reroll_type == RerollType::Once {
+                let should_reroll = match reroll_condition {
+                    RerollCondition::Value(val) => current_roll == val,
+                    RerollCondition::GreaterThan(val) => current_roll > val,
+                    RerollCondition::LessThan(val) => current_roll < val,
+                };
+                if should_reroll {
+                    current_roll = rng.gen_range(1..=sides);
+                }
+            } else { // RerollType::Continuous
+                let mut reroll_count = 0;
+                const MAX_REROLLS: usize = 100;
+                loop {
+                    let should_reroll = match reroll_condition {
+                        RerollCondition::Value(val) => current_roll == val,
+                        RerollCondition::GreaterThan(val) => current_roll > val,
+                        RerollCondition::LessThan(val) => current_roll < val,
+                    };
+                    if should_reroll && reroll_count < MAX_REROLLS {
+                        current_roll = rng.gen_range(1..=sides);
+                        reroll_count += 1;
+                    } else {
+                        break;
+                    }
+                }
+            }
+            results.push(current_roll);
+        }
+        return Some(results);
+    }
+
     // Handle simple dice notation (e.g., "4d10", "d6")
     if let Some((count, sides)) = parse_simple_dice(notation) {
         let mut results = Vec::new();
@@ -293,6 +329,19 @@ fn parse_and_roll_dice(notation: &str) -> Option<Vec<i32>> {
     }
 
     None
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum RerollType {
+    Once,
+    Continuous,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum RerollCondition {
+    Value(i32),
+    GreaterThan(i32),
+    LessThan(i32),
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -499,6 +548,40 @@ fn parse_keep_dice(notation: &str) -> Option<(usize, i32, DiceOperation, usize)>
     }
     
     Some((count, sides, operation, op_count))
+}
+
+/// Parses rerolling dice notation like "4d6r1", "2d6R<3"
+fn parse_reroll_dice(notation: &str) -> Option<(usize, i32, RerollType, RerollCondition)> {
+    let d_pos = notation.find('d')?;
+    let count_str = &notation[..d_pos];
+    let rest = &notation[d_pos + 1..];
+
+    let count = if count_str.is_empty() {
+        1
+    } else {
+        count_str.parse().ok()?
+    };
+
+    let reroll_pos = rest.find(|c| c == 'r' || c == 'R')?;
+    let sides_str = &rest[..reroll_pos];
+    let sides = sides_str.parse().ok()?;
+
+    let reroll_type = if rest.chars().nth(reroll_pos)? == 'r' {
+        RerollType::Once
+    } else {
+        RerollType::Continuous
+    };
+
+    let condition_str = &rest[reroll_pos + 1..];
+    let condition = if let Some(stripped) = condition_str.strip_prefix('<') {
+        RerollCondition::LessThan(stripped.parse().ok()?)
+    } else if let Some(stripped) = condition_str.strip_prefix('>') {
+        RerollCondition::GreaterThan(stripped.parse().ok()?)
+    } else {
+        RerollCondition::Value(condition_str.parse().ok()?)
+    };
+
+    Some((count, sides, reroll_type, condition))
 }
 
 /// Parses simple dice notation like "4d10" or "d6"
@@ -1487,6 +1570,48 @@ mod tests {
                 for &result in &results {
                     assert!(result >= 1 && result <= 6, "All results should be valid d6 rolls");
                 }
+            }
+        }
+    }
+
+    mod reroll_dice_operations {
+        use super::*;
+
+        #[test]
+        fn test_reroll_once_on_value() {
+            // This test can't guarantee the rerolled value isn't the same.
+            // We are just testing that it runs without error.
+            for _ in 0..100 {
+                let result = roll("1d6r1").unwrap();
+                assert_eq!(result.len(), 1);
+            }
+        }
+
+        #[test]
+        fn test_reroll_continuous_on_value() {
+            for _ in 0..100 {
+                let result = roll("1d6R1").unwrap();
+                assert_eq!(result.len(), 1);
+                assert_ne!(result[0], 1);
+            }
+        }
+
+        #[test]
+        fn test_reroll_once_less_than() {
+            // This test can't guarantee the rerolled value is not less than 3.
+            // We are just testing that it runs without error.
+            for _ in 0..100 {
+                let result = roll("1d6r<3").unwrap();
+                assert_eq!(result.len(), 1);
+            }
+        }
+
+        #[test]
+        fn test_reroll_continuous_less_than() {
+            for _ in 0..100 {
+                let result = roll("1d6R<3").unwrap();
+                assert_eq!(result.len(), 1);
+                assert!(result[0] >= 3);
             }
         }
     }

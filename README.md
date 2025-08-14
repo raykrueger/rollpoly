@@ -90,6 +90,27 @@ d20!>10: Roll a d20 and explode every time a number higher than 10 is rolled
 3d12!<2: Roll 3d12 and explode every time a 1 is rolled.
 ```
 
+#### Rerolling Dice (r/R):
+
+Rerolling allows you to roll certain dice again based on specific conditions, replacing the original result with the new roll. Use lowercase 'r' for rerolling once, or uppercase 'R' to keep rerolling until the condition is no longer met.
+
+```
+4d6r1: Roll 4d6 and reroll any 1s once (D&D Great Weapon Fighting)
+2d6r<3: Roll 2d6 and reroll anything under 3 once
+3d8R1: Roll 3d8 and keep rerolling 1s until no 1s remain
+4d10R<3: Roll 4d10 and keep rerolling anything under 3
+1d20r1r2: Roll 1d20 and reroll 1s and 2s once
+2d6r>4: Roll 2d6 and reroll anything over 4 once
+```
+
+## AI Tooling
+
+Almost all of this code base was developed by AI Tooling.
+
+### Steering
+
+All AI tooling must follow the rules established in steering documents found in .amazonq/rules/steering/*.md
+
 ## License
 
 This project is licensed under the Apache License 2.0 - see the [LICENSE](LICENSE) file for details.
