@@ -151,17 +151,17 @@ fn parse_and_roll_dice(notation: &str) -> Option<Vec<i32>> {
     // Handle exploding dice syntax (e.g., "2d20!", "7d20!3", "d20!>10", "3d12!<2")
     if let Some((count, sides, explode_comp, explode_target)) = parse_exploding_dice(notation) {
         let mut all_results = Vec::new();
-        
+
         // Roll each die with exploding
         for _ in 0..count {
             let mut die_results = Vec::new();
             let mut current_roll = rng.gen_range(1..=sides);
             die_results.push(current_roll);
-            
+
             // Safety limit to prevent infinite explosions
             let mut explosion_count = 0;
             const MAX_EXPLOSIONS: usize = 100;
-            
+
             // Check if this roll should explode
             loop {
                 let should_explode = match (explode_comp, explode_target) {
@@ -173,15 +173,11 @@ fn parse_and_roll_dice(notation: &str) -> Option<Vec<i32>> {
                         // Explode on specific number (e.g., "d6!3" - explode on exactly 3)
                         current_roll == target
                     }
-                    (Some(SuccessComparison::GreaterThan), Some(target)) => {
-                        current_roll > target
-                    }
-                    (Some(SuccessComparison::LessThan), Some(target)) => {
-                        current_roll < target
-                    }
+                    (Some(SuccessComparison::GreaterThan), Some(target)) => current_roll > target,
+                    (Some(SuccessComparison::LessThan), Some(target)) => current_roll < target,
                     _ => false,
                 };
-                
+
                 if should_explode && explosion_count < MAX_EXPLOSIONS {
                     // Roll another die and add it
                     current_roll = rng.gen_range(1..=sides);
@@ -191,54 +187,56 @@ fn parse_and_roll_dice(notation: &str) -> Option<Vec<i32>> {
                     break;
                 }
             }
-            
+
             // Add all results from this exploding die
             all_results.extend(die_results);
         }
-        
+
         return Some(all_results);
     }
 
     // Handle success counting syntax (e.g., "4d20>19", "10d12<3")
     if let Some((count, sides, comparison, target)) = parse_success_dice(notation) {
         let mut success_count = 0;
-        
+
         // Roll all the dice and count successes
         for _ in 0..count {
             let roll = rng.gen_range(1..=sides);
-            
+
             let is_success = match comparison {
                 SuccessComparison::GreaterThan => roll > target,
                 SuccessComparison::LessThan => roll < target,
             };
-            
+
             if is_success {
                 success_count += 1;
             }
         }
-        
+
         // Return the success count as the final result
         return Some(vec![success_count]);
     }
 
     // Handle success/failure counting syntax (e.g., "10d10>6f<3", "4d20<5f>19")
-    if let Some((count, sides, success_comp, success_target, failure_comp, failure_target)) = parse_success_failure_dice(notation) {
+    if let Some((count, sides, success_comp, success_target, failure_comp, failure_target)) =
+        parse_success_failure_dice(notation)
+    {
         let mut net_successes = 0;
-        
+
         // Roll all the dice and count successes/failures
         for _ in 0..count {
             let roll = rng.gen_range(1..=sides);
-            
+
             let is_success = match success_comp {
                 SuccessComparison::GreaterThan => roll > success_target,
                 SuccessComparison::LessThan => roll < success_target,
             };
-            
+
             let is_failure = match failure_comp {
                 SuccessComparison::GreaterThan => roll > failure_target,
                 SuccessComparison::LessThan => roll < failure_target,
             };
-            
+
             if is_success {
                 net_successes += 1;
             }
@@ -246,7 +244,7 @@ fn parse_and_roll_dice(notation: &str) -> Option<Vec<i32>> {
                 net_successes -= 1;
             }
         }
-        
+
         // Return the net success count
         return Some(vec![net_successes]);
     }
@@ -254,12 +252,12 @@ fn parse_and_roll_dice(notation: &str) -> Option<Vec<i32>> {
     // Handle keep highest/lowest syntax (e.g., "4d10K", "7d12K3", "3d6k", "100d6k99")
     if let Some((count, sides, keep_type, keep_count)) = parse_keep_dice(notation) {
         let mut results = Vec::new();
-        
+
         // Roll all the dice
         for _ in 0..count {
             results.push(rng.gen_range(1..=sides));
         }
-        
+
         // Sort and keep the specified dice
         match keep_type {
             DiceOperation::KeepHighest => {
@@ -279,7 +277,7 @@ fn parse_and_roll_dice(notation: &str) -> Option<Vec<i32>> {
                 results.truncate(count - keep_count); // Keep all but the lowest
             }
         }
-        
+
         return Some(results);
     }
 
@@ -297,7 +295,8 @@ fn parse_and_roll_dice(notation: &str) -> Option<Vec<i32>> {
                 if should_reroll {
                     current_roll = rng.gen_range(1..=sides);
                 }
-            } else { // RerollType::Continuous
+            } else {
+                // RerollType::Continuous
                 let mut reroll_count = 0;
                 const MAX_REROLLS: usize = 100;
                 loop {
@@ -364,14 +363,14 @@ fn parse_success_dice(notation: &str) -> Option<(usize, i32, SuccessComparison, 
     let d_pos = notation.find('d')?;
     let count_str = &notation[..d_pos];
     let rest = &notation[d_pos + 1..];
-    
+
     // Handle implicit count (e.g., "d20>15" means "1d20>15")
     let count = if count_str.is_empty() {
         1
     } else {
         count_str.parse().ok()?
     };
-    
+
     // Find > or <
     let (comparison, comp_pos) = if let Some(pos) = rest.find('>') {
         (SuccessComparison::GreaterThan, pos)
@@ -380,42 +379,44 @@ fn parse_success_dice(notation: &str) -> Option<(usize, i32, SuccessComparison, 
     } else {
         return None;
     };
-    
+
     // Parse sides (before comparison character)
     let sides_str = &rest[..comp_pos];
     let sides = sides_str.parse().ok()?;
-    
+
     // Parse target (after comparison character)
     let target_str = &rest[comp_pos + 1..];
     let target = target_str.parse().ok()?;
-    
+
     Some((count, sides, comparison, target))
 }
 
 /// Parses exploding dice notation like "2d20!", "7d20!3", "d20!>10", "3d12!<2"
-fn parse_exploding_dice(notation: &str) -> Option<(usize, i32, Option<SuccessComparison>, Option<i32>)> {
+fn parse_exploding_dice(
+    notation: &str,
+) -> Option<(usize, i32, Option<SuccessComparison>, Option<i32>)> {
     // Find 'd' first
     let d_pos = notation.find('d')?;
     let count_str = &notation[..d_pos];
     let rest = &notation[d_pos + 1..];
-    
+
     // Handle implicit count (e.g., "d20!" means "1d20!")
     let count = if count_str.is_empty() {
         1
     } else {
         count_str.parse().ok()?
     };
-    
+
     // Find '!' for exploding
     let explode_pos = rest.find('!')?;
-    
+
     // Parse sides (before !)
     let sides_str = &rest[..explode_pos];
     let sides = sides_str.parse().ok()?;
-    
+
     // Parse exploding condition (after !)
     let explode_str = &rest[explode_pos + 1..];
-    
+
     if explode_str.is_empty() {
         // Simple exploding (e.g., "2d20!" - explode on max value)
         Some((count, sides, None, None))
@@ -427,36 +428,48 @@ fn parse_exploding_dice(notation: &str) -> Option<(usize, i32, Option<SuccessCom
         // Explode on greater than (e.g., "d20!>10" - explode on 11+)
         let target_str = &explode_str[pos + 1..];
         let target = target_str.parse().ok()?;
-        Some((count, sides, Some(SuccessComparison::GreaterThan), Some(target)))
+        Some((
+            count,
+            sides,
+            Some(SuccessComparison::GreaterThan),
+            Some(target),
+        ))
     } else if let Some(pos) = explode_str.find('<') {
         // Explode on less than (e.g., "3d12!<2" - explode on 1)
         let target_str = &explode_str[pos + 1..];
         let target = target_str.parse().ok()?;
-        Some((count, sides, Some(SuccessComparison::LessThan), Some(target)))
+        Some((
+            count,
+            sides,
+            Some(SuccessComparison::LessThan),
+            Some(target),
+        ))
     } else {
         None
     }
 }
 
 /// Parses success/failure counting dice notation like "10d10>6f<3", "4d20<5f>19"
-fn parse_success_failure_dice(notation: &str) -> Option<(usize, i32, SuccessComparison, i32, SuccessComparison, i32)> {
+fn parse_success_failure_dice(
+    notation: &str,
+) -> Option<(usize, i32, SuccessComparison, i32, SuccessComparison, i32)> {
     // Find 'd' first
     let d_pos = notation.find('d')?;
     let count_str = &notation[..d_pos];
     let rest = &notation[d_pos + 1..];
-    
+
     // Handle implicit count
     let count = if count_str.is_empty() {
         1
     } else {
         count_str.parse().ok()?
     };
-    
+
     // Find 'f' to split success and failure parts
     let f_pos = rest.find('f')?;
     let success_part = &rest[..f_pos];
     let failure_part = &rest[f_pos + 1..];
-    
+
     // Parse success condition
     let (success_comp, success_comp_pos) = if let Some(pos) = success_part.find('>') {
         (SuccessComparison::GreaterThan, pos)
@@ -465,12 +478,12 @@ fn parse_success_failure_dice(notation: &str) -> Option<(usize, i32, SuccessComp
     } else {
         return None;
     };
-    
+
     let sides_str = &success_part[..success_comp_pos];
     let sides = sides_str.parse().ok()?;
     let success_target_str = &success_part[success_comp_pos + 1..];
     let success_target = success_target_str.parse().ok()?;
-    
+
     // Parse failure condition
     let (failure_comp, failure_comp_pos) = if let Some(pos) = failure_part.find('>') {
         (SuccessComparison::GreaterThan, pos)
@@ -479,33 +492,40 @@ fn parse_success_failure_dice(notation: &str) -> Option<(usize, i32, SuccessComp
     } else {
         return None;
     };
-    
+
     let failure_target_str = &failure_part[failure_comp_pos + 1..];
     let failure_target = failure_target_str.parse().ok()?;
-    
+
     // Validate that success and failure conditions don't conflict
     // Both can't be greater than or both less than
     match (success_comp, failure_comp) {
-        (SuccessComparison::GreaterThan, SuccessComparison::GreaterThan) | 
-        (SuccessComparison::LessThan, SuccessComparison::LessThan) => return None,
+        (SuccessComparison::GreaterThan, SuccessComparison::GreaterThan)
+        | (SuccessComparison::LessThan, SuccessComparison::LessThan) => return None,
         _ => {}
     }
-    
-    Some((count, sides, success_comp, success_target, failure_comp, failure_target))
+
+    Some((
+        count,
+        sides,
+        success_comp,
+        success_target,
+        failure_comp,
+        failure_target,
+    ))
 }
 fn parse_keep_dice(notation: &str) -> Option<(usize, i32, DiceOperation, usize)> {
     // Find 'd' first
     let d_pos = notation.find('d')?;
     let count_str = &notation[..d_pos];
     let rest = &notation[d_pos + 1..];
-    
+
     // Handle implicit count (e.g., "dK6" means "1dK6")
     let count = if count_str.is_empty() {
         1
     } else {
         count_str.parse().ok()?
     };
-    
+
     // Find K, k, X, or x
     let (operation, op_pos) = if let Some(pos) = rest.find('K') {
         (DiceOperation::KeepHighest, pos)
@@ -518,11 +538,11 @@ fn parse_keep_dice(notation: &str) -> Option<(usize, i32, DiceOperation, usize)>
     } else {
         return None;
     };
-    
+
     // Parse sides (before operation character)
     let sides_str = &rest[..op_pos];
     let sides = sides_str.parse().ok()?;
-    
+
     // Parse operation count (after operation character)
     let op_str = &rest[op_pos + 1..];
     let op_count = if op_str.is_empty() {
@@ -530,7 +550,7 @@ fn parse_keep_dice(notation: &str) -> Option<(usize, i32, DiceOperation, usize)>
     } else {
         op_str.parse().ok()?
     };
-    
+
     // Validate the operation makes sense
     match operation {
         DiceOperation::KeepHighest | DiceOperation::KeepLowest => {
@@ -546,7 +566,7 @@ fn parse_keep_dice(notation: &str) -> Option<(usize, i32, DiceOperation, usize)>
             }
         }
     }
-    
+
     Some((count, sides, operation, op_count))
 }
 
@@ -619,15 +639,16 @@ fn parse_arithmetic_operation(notation: &str, operator: &str) -> Option<Vec<i32>
     let right_part = parts[1].trim();
 
     // Parse the left part (could be simple dice, keep dice, or drop dice)
-    let mut results = if let Some((count, sides, operation, op_count)) = parse_keep_dice(left_part) {
+    let mut results = if let Some((count, sides, operation, op_count)) = parse_keep_dice(left_part)
+    {
         // Handle keep/drop dice with arithmetic
         let mut dice_results = Vec::new();
-        
+
         // Roll all the dice
         for _ in 0..count {
             dice_results.push(rng.gen_range(1..=sides));
         }
-        
+
         // Sort and apply the operation
         match operation {
             DiceOperation::KeepHighest => {
@@ -647,7 +668,7 @@ fn parse_arithmetic_operation(notation: &str, operator: &str) -> Option<Vec<i32>
                 dice_results.truncate(count - op_count); // Keep all but the lowest
             }
         }
-        
+
         dice_results
     } else if let Some((count, sides)) = parse_simple_dice(left_part) {
         // Handle simple dice with arithmetic
@@ -664,12 +685,12 @@ fn parse_arithmetic_operation(notation: &str, operator: &str) -> Option<Vec<i32>
     if let Some((count, sides, operation, op_count)) = parse_keep_dice(right_part) {
         // Right side is keep/drop dice
         let mut right_dice = Vec::new();
-        
+
         // Roll all the dice
         for _ in 0..count {
             right_dice.push(rng.gen_range(1..=sides));
         }
-        
+
         // Sort and apply the operation
         match operation {
             DiceOperation::KeepHighest => {
@@ -689,7 +710,7 @@ fn parse_arithmetic_operation(notation: &str, operator: &str) -> Option<Vec<i32>
                 right_dice.truncate(count - op_count);
             }
         }
-        
+
         // Apply the operation between left and right dice
         match operator {
             "+" => results.extend(right_dice),
@@ -723,7 +744,7 @@ fn parse_arithmetic_operation(notation: &str, operator: &str) -> Option<Vec<i32>
         for _ in 0..count {
             right_dice.push(rng.gen_range(1..=sides));
         }
-        
+
         // Apply the operation between left and right dice
         match operator {
             "+" => results.extend(right_dice),
@@ -1246,7 +1267,10 @@ mod tests {
             assert!(result.is_ok(), "Keep highest should work");
             let results = result.unwrap();
             assert_eq!(results.len(), 1, "Should keep only 1 die");
-            assert!(results[0] >= 1 && results[0] <= 6, "Result should be valid die roll");
+            assert!(
+                results[0] >= 1 && results[0] <= 6,
+                "Result should be valid die roll"
+            );
         }
 
         #[test]
@@ -1261,7 +1285,7 @@ mod tests {
             assert!(result.is_ok(), "Keep highest multiple should work");
             let results = result.unwrap();
             assert_eq!(results.len(), 3, "Should keep exactly 3 dice");
-            
+
             // Results should be in descending order (highest first)
             for i in 1..results.len() {
                 assert!(
@@ -1270,10 +1294,13 @@ mod tests {
                     results
                 );
             }
-            
+
             // All results should be valid
             for &result in &results {
-                assert!(result >= 1 && result <= 12, "All results should be valid d12 rolls");
+                assert!(
+                    result >= 1 && result <= 12,
+                    "All results should be valid d12 rolls"
+                );
             }
         }
 
@@ -1289,7 +1316,10 @@ mod tests {
             assert!(result.is_ok(), "Keep lowest should work");
             let results = result.unwrap();
             assert_eq!(results.len(), 1, "Should keep only 1 die");
-            assert!(results[0] >= 1 && results[0] <= 6, "Result should be valid die roll");
+            assert!(
+                results[0] >= 1 && results[0] <= 6,
+                "Result should be valid die roll"
+            );
         }
 
         #[test]
@@ -1304,7 +1334,7 @@ mod tests {
             assert!(result.is_ok(), "Keep lowest multiple should work");
             let results = result.unwrap();
             assert_eq!(results.len(), 3, "Should keep exactly 3 dice");
-            
+
             // Results should be in ascending order (lowest first)
             for i in 1..results.len() {
                 assert!(
@@ -1313,10 +1343,13 @@ mod tests {
                     results
                 );
             }
-            
+
             // All results should be valid
             for &result in &results {
-                assert!(result >= 1 && result <= 6, "All results should be valid d6 rolls");
+                assert!(
+                    result >= 1 && result <= 6,
+                    "All results should be valid d6 rolls"
+                );
             }
         }
 
@@ -1332,10 +1365,10 @@ mod tests {
             assert!(result.is_ok(), "Keep highest with arithmetic should work");
             let results = result.unwrap();
             assert_eq!(results.len(), 3, "Should have 2 kept dice + 1 modifier");
-            
+
             // Last element should be the modifier
             assert_eq!(results[2], 5, "Last element should be the +5 modifier");
-            
+
             // First two should be dice results in descending order
             assert!(
                 results[0] >= results[1],
@@ -1356,7 +1389,10 @@ mod tests {
             assert!(result.is_ok(), "Disadvantage roll should work");
             let results = result.unwrap();
             assert_eq!(results.len(), 1, "Should keep only the lowest die");
-            assert!(results[0] >= 1 && results[0] <= 20, "Result should be valid d20 roll");
+            assert!(
+                results[0] >= 1 && results[0] <= 20,
+                "Result should be valid d20 roll"
+            );
         }
 
         #[test]
@@ -1371,7 +1407,10 @@ mod tests {
             assert!(result.is_ok(), "Advantage roll should work");
             let results = result.unwrap();
             assert_eq!(results.len(), 1, "Should keep only the highest die");
-            assert!(results[0] >= 1 && results[0] <= 20, "Result should be valid d20 roll");
+            assert!(
+                results[0] >= 1 && results[0] <= 20,
+                "Result should be valid d20 roll"
+            );
         }
     }
 
@@ -1390,7 +1429,7 @@ mod tests {
             assert!(result.is_ok(), "Drop highest should work");
             let results = result.unwrap();
             assert_eq!(results.len(), 5, "Should keep 5 dice after dropping 1");
-            
+
             // Results should be in ascending order (lowest first, highest dropped)
             for i in 1..results.len() {
                 assert!(
@@ -1399,10 +1438,13 @@ mod tests {
                     results
                 );
             }
-            
+
             // All results should be valid d8 rolls
             for &result in &results {
-                assert!(result >= 1 && result <= 8, "All results should be valid d8 rolls");
+                assert!(
+                    result >= 1 && result <= 8,
+                    "All results should be valid d8 rolls"
+                );
             }
         }
 
@@ -1418,7 +1460,7 @@ mod tests {
             assert!(result.is_ok(), "Drop highest multiple should work");
             let results = result.unwrap();
             assert_eq!(results.len(), 2, "Should keep 2 dice after dropping 3");
-            
+
             // Results should be in ascending order (lowest kept)
             for i in 1..results.len() {
                 assert!(
@@ -1427,10 +1469,13 @@ mod tests {
                     results
                 );
             }
-            
+
             // All results should be valid d10 rolls
             for &result in &results {
-                assert!(result >= 1 && result <= 10, "All results should be valid d10 rolls");
+                assert!(
+                    result >= 1 && result <= 10,
+                    "All results should be valid d10 rolls"
+                );
             }
         }
 
@@ -1446,7 +1491,7 @@ mod tests {
             assert!(result.is_ok(), "Drop lowest should work");
             let results = result.unwrap();
             assert_eq!(results.len(), 5, "Should keep 5 dice after dropping 1");
-            
+
             // Results should be in descending order (highest first, lowest dropped)
             for i in 1..results.len() {
                 assert!(
@@ -1455,10 +1500,13 @@ mod tests {
                     results
                 );
             }
-            
+
             // All results should be valid d8 rolls
             for &result in &results {
-                assert!(result >= 1 && result <= 8, "All results should be valid d8 rolls");
+                assert!(
+                    result >= 1 && result <= 8,
+                    "All results should be valid d8 rolls"
+                );
             }
         }
 
@@ -1474,7 +1522,7 @@ mod tests {
             assert!(result.is_ok(), "Drop lowest multiple should work");
             let results = result.unwrap();
             assert_eq!(results.len(), 2, "Should keep 2 dice after dropping 3");
-            
+
             // Results should be in descending order (highest kept)
             for i in 1..results.len() {
                 assert!(
@@ -1483,10 +1531,13 @@ mod tests {
                     results
                 );
             }
-            
+
             // All results should be valid d10 rolls
             for &result in &results {
-                assert!(result >= 1 && result <= 10, "All results should be valid d10 rolls");
+                assert!(
+                    result >= 1 && result <= 10,
+                    "All results should be valid d10 rolls"
+                );
             }
         }
 
@@ -1502,10 +1553,10 @@ mod tests {
             assert!(result.is_ok(), "Drop highest with arithmetic should work");
             let results = result.unwrap();
             assert_eq!(results.len(), 5, "Should have 4 kept dice + 1 modifier");
-            
+
             // Last element should be the modifier
             assert_eq!(results[4], 5, "Last element should be the +5 modifier");
-            
+
             // First four should be dice results in ascending order (lowest kept)
             for i in 1..4 {
                 assert!(
@@ -1528,7 +1579,7 @@ mod tests {
             assert!(result.is_ok(), "4d6 drop lowest should work");
             let results = result.unwrap();
             assert_eq!(results.len(), 3, "Should keep 3 dice after dropping lowest");
-            
+
             // Results should be in descending order (highest kept)
             for i in 1..results.len() {
                 assert!(
@@ -1537,10 +1588,13 @@ mod tests {
                     results
                 );
             }
-            
+
             // All results should be valid d6 rolls
             for &result in &results {
-                assert!(result >= 1 && result <= 6, "All results should be valid d6 rolls");
+                assert!(
+                    result >= 1 && result <= 6,
+                    "All results should be valid d6 rolls"
+                );
             }
         }
 
@@ -1553,10 +1607,10 @@ mod tests {
             for _ in 0..20 {
                 let result = roll(notation);
                 assert!(result.is_ok(), "Drop should work consistently");
-                
+
                 let results = result.unwrap();
                 assert_eq!(results.len(), 5, "Should always keep exactly 5 dice");
-                
+
                 // Should be in ascending order (lowest kept)
                 for i in 1..results.len() {
                     assert!(
@@ -1565,10 +1619,13 @@ mod tests {
                         results
                     );
                 }
-                
+
                 // All should be valid d6 rolls
                 for &result in &results {
-                    assert!(result >= 1 && result <= 6, "All results should be valid d6 rolls");
+                    assert!(
+                        result >= 1 && result <= 6,
+                        "All results should be valid d6 rolls"
+                    );
                 }
             }
         }
@@ -1631,14 +1688,20 @@ mod tests {
             assert!(result.is_ok(), "Dice + dice should work");
             let results = result.unwrap();
             assert_eq!(results.len(), 3, "Should have 2d6 + 1d4 = 3 dice");
-            
+
             // First two should be d6 results
             for i in 0..2 {
-                assert!(results[i] >= 1 && results[i] <= 6, "d6 results should be 1-6");
+                assert!(
+                    results[i] >= 1 && results[i] <= 6,
+                    "d6 results should be 1-6"
+                );
             }
-            
+
             // Last should be d4 result
-            assert!(results[2] >= 1 && results[2] <= 4, "d4 result should be 1-4");
+            assert!(
+                results[2] >= 1 && results[2] <= 4,
+                "d4 result should be 1-4"
+            );
         }
 
         #[test]
@@ -1653,14 +1716,20 @@ mod tests {
             assert!(result.is_ok(), "Dice - dice should work");
             let results = result.unwrap();
             assert_eq!(results.len(), 3, "Should have 2d12 - 1d6 = 3 values");
-            
+
             // First two should be d12 results
             for i in 0..2 {
-                assert!(results[i] >= 1 && results[i] <= 12, "d12 results should be 1-12");
+                assert!(
+                    results[i] >= 1 && results[i] <= 12,
+                    "d12 results should be 1-12"
+                );
             }
-            
+
             // Last should be negative d6 result
-            assert!(results[2] >= -6 && results[2] <= -1, "Subtracted d6 should be -6 to -1");
+            assert!(
+                results[2] >= -6 && results[2] <= -1,
+                "Subtracted d6 should be -6 to -1"
+            );
         }
 
         #[test]
@@ -1675,10 +1744,13 @@ mod tests {
             assert!(result.is_ok(), "Daggerheart Advantage roll should work");
             let results = result.unwrap();
             assert_eq!(results.len(), 3, "Should have 2d12 + 1d6 = 3 dice");
-            
+
             // Check ranges
             let sum: i32 = results.iter().sum();
-            assert!(sum >= 3 && sum <= 30, "Daggerheart Advantage sum should be 3-30");
+            assert!(
+                sum >= 3 && sum <= 30,
+                "Daggerheart Advantage sum should be 3-30"
+            );
         }
 
         #[test]
@@ -1693,10 +1765,14 @@ mod tests {
             assert!(result.is_ok(), "Daggerheart Disadvantage roll should work");
             let results = result.unwrap();
             assert_eq!(results.len(), 3, "Should have 2d12 - 1d6 = 3 values");
-            
+
             // Check ranges: 2d12 (2-24) - 1d6 (1-6) = -4 to 23
             let sum: i32 = results.iter().sum();
-            assert!(sum >= -4 && sum <= 23, "Daggerheart Disadvantage sum should be -4 to 23, got {}", sum);
+            assert!(
+                sum >= -4 && sum <= 23,
+                "Daggerheart Disadvantage sum should be -4 to 23, got {}",
+                sum
+            );
         }
 
         #[test]
@@ -1711,10 +1787,13 @@ mod tests {
             assert!(result.is_ok(), "Keep dice + dice should work");
             let results = result.unwrap();
             assert_eq!(results.len(), 4, "Should have 3 kept d6 + 1d4 = 4 dice");
-            
+
             // First three should be d6 results in descending order
             for i in 0..3 {
-                assert!(results[i] >= 1 && results[i] <= 6, "Kept d6 results should be 1-6");
+                assert!(
+                    results[i] >= 1 && results[i] <= 6,
+                    "Kept d6 results should be 1-6"
+                );
             }
             for i in 1..3 {
                 assert!(
@@ -1722,9 +1801,12 @@ mod tests {
                     "Kept dice should be in descending order"
                 );
             }
-            
+
             // Last should be d4 result
-            assert!(results[3] >= 1 && results[3] <= 4, "d4 result should be 1-4");
+            assert!(
+                results[3] >= 1 && results[3] <= 4,
+                "d4 result should be 1-4"
+            );
         }
 
         #[test]
@@ -1736,18 +1818,24 @@ mod tests {
             for _ in 0..20 {
                 let result = roll(notation);
                 assert!(result.is_ok(), "Dice + dice should work consistently");
-                
+
                 let results = result.unwrap();
                 assert_eq!(results.len(), 5, "Should always have 5 dice");
-                
+
                 // Check ranges
                 for i in 0..3 {
-                    assert!(results[i] >= 1 && results[i] <= 6, "d6 results should be 1-6");
+                    assert!(
+                        results[i] >= 1 && results[i] <= 6,
+                        "d6 results should be 1-6"
+                    );
                 }
                 for i in 3..5 {
-                    assert!(results[i] >= 1 && results[i] <= 4, "d4 results should be 1-4");
+                    assert!(
+                        results[i] >= 1 && results[i] <= 4,
+                        "d4 results should be 1-4"
+                    );
                 }
-                
+
                 let sum: i32 = results.iter().sum();
                 assert!(sum >= 5 && sum <= 26, "Sum should be in valid range");
             }
@@ -1769,10 +1857,14 @@ mod tests {
             assert!(result.is_ok(), "Success counting should work");
             let results = result.unwrap();
             assert_eq!(results.len(), 1, "Should return single success count");
-            
+
             // Success count should be between 0 and 5
             let success_count = results[0];
-            assert!(success_count >= 0 && success_count <= 5, "Success count should be 0-5, got {}", success_count);
+            assert!(
+                success_count >= 0 && success_count <= 5,
+                "Success count should be 0-5, got {}",
+                success_count
+            );
         }
 
         #[test]
@@ -1787,10 +1879,14 @@ mod tests {
             assert!(result.is_ok(), "Success counting with < should work");
             let results = result.unwrap();
             assert_eq!(results.len(), 1, "Should return single success count");
-            
+
             // Success count should be between 0 and 8
             let success_count = results[0];
-            assert!(success_count >= 0 && success_count <= 8, "Success count should be 0-8, got {}", success_count);
+            assert!(
+                success_count >= 0 && success_count <= 8,
+                "Success count should be 0-8, got {}",
+                success_count
+            );
         }
 
         #[test]
@@ -1805,9 +1901,12 @@ mod tests {
             assert!(result.is_ok(), "World of Darkness style should work");
             let results = result.unwrap();
             assert_eq!(results.len(), 1, "Should return single success count");
-            
+
             let success_count = results[0];
-            assert!(success_count >= 0 && success_count <= 5, "Success count should be valid range");
+            assert!(
+                success_count >= 0 && success_count <= 5,
+                "Success count should be valid range"
+            );
         }
 
         #[test]
@@ -1822,9 +1921,13 @@ mod tests {
             assert!(result.is_ok(), "Shadowrun style should work");
             let results = result.unwrap();
             assert_eq!(results.len(), 1, "Should return single success count");
-            
+
             let success_count = results[0];
-            assert!(success_count >= 0 && success_count <= 12, "Success count should be 0-12, got {}", success_count);
+            assert!(
+                success_count >= 0 && success_count <= 12,
+                "Success count should be 0-12, got {}",
+                success_count
+            );
         }
 
         #[test]
@@ -1839,10 +1942,14 @@ mod tests {
             assert!(result.is_ok(), "Success/failure counting should work");
             let results = result.unwrap();
             assert_eq!(results.len(), 1, "Should return single net success count");
-            
+
             // Net successes can be negative due to failures
             let net_successes = results[0];
-            assert!(net_successes >= -10 && net_successes <= 10, "Net successes should be -10 to 10, got {}", net_successes);
+            assert!(
+                net_successes >= -10 && net_successes <= 10,
+                "Net successes should be -10 to 10, got {}",
+                net_successes
+            );
         }
 
         #[test]
@@ -1857,9 +1964,13 @@ mod tests {
             assert!(result.is_ok(), "Success < failure > should work");
             let results = result.unwrap();
             assert_eq!(results.len(), 1, "Should return single net success count");
-            
+
             let net_successes = results[0];
-            assert!(net_successes >= -4 && net_successes <= 4, "Net successes should be -4 to 4, got {}", net_successes);
+            assert!(
+                net_successes >= -4 && net_successes <= 4,
+                "Net successes should be -4 to 4, got {}",
+                net_successes
+            );
         }
 
         #[test]
@@ -1871,12 +1982,19 @@ mod tests {
             for _ in 0..20 {
                 let result = roll(notation);
                 assert!(result.is_ok(), "Success counting should work consistently");
-                
+
                 let results = result.unwrap();
-                assert_eq!(results.len(), 1, "Should always return single success count");
-                
+                assert_eq!(
+                    results.len(),
+                    1,
+                    "Should always return single success count"
+                );
+
                 let success_count = results[0];
-                assert!(success_count >= 0 && success_count <= 6, "Success count should always be 0-6");
+                assert!(
+                    success_count >= 0 && success_count <= 6,
+                    "Success count should always be 0-6"
+                );
             }
         }
 
@@ -1889,12 +2007,18 @@ mod tests {
             let result = roll(notation);
 
             // Assert
-            assert!(result.is_ok(), "Implicit single die success counting should work");
+            assert!(
+                result.is_ok(),
+                "Implicit single die success counting should work"
+            );
             let results = result.unwrap();
             assert_eq!(results.len(), 1, "Should return single success count");
-            
+
             let success_count = results[0];
-            assert!(success_count >= 0 && success_count <= 1, "Single die success count should be 0 or 1");
+            assert!(
+                success_count >= 0 && success_count <= 1,
+                "Single die success count should be 0 or 1"
+            );
         }
     }
 
@@ -1912,15 +2036,19 @@ mod tests {
             // Assert
             assert!(result.is_ok(), "Simple exploding dice should work");
             let results = result.unwrap();
-            
+
             // Should have at least 2 dice (the original rolls)
             assert!(results.len() >= 2, "Should have at least 2 dice results");
-            
+
             // All results should be valid d6 rolls
             for &roll in &results {
-                assert!(roll >= 1 && roll <= 6, "All rolls should be 1-6, got {}", roll);
+                assert!(
+                    roll >= 1 && roll <= 6,
+                    "All rolls should be 1-6, got {}",
+                    roll
+                );
             }
-            
+
             // Total should be at least 2 (minimum possible)
             let total: i32 = results.iter().sum();
             assert!(total >= 2, "Total should be at least 2");
@@ -1937,13 +2065,17 @@ mod tests {
             // Assert
             assert!(result.is_ok(), "Exploding on specific number should work");
             let results = result.unwrap();
-            
+
             // Should have at least 3 dice (the original rolls)
             assert!(results.len() >= 3, "Should have at least 3 dice results");
-            
+
             // All results should be valid d10 rolls
             for &roll in &results {
-                assert!(roll >= 1 && roll <= 10, "All rolls should be 1-10, got {}", roll);
+                assert!(
+                    roll >= 1 && roll <= 10,
+                    "All rolls should be 1-10, got {}",
+                    roll
+                );
             }
         }
 
@@ -1958,13 +2090,17 @@ mod tests {
             // Assert
             assert!(result.is_ok(), "Exploding greater than should work");
             let results = result.unwrap();
-            
+
             // Should have at least 1 die
             assert!(results.len() >= 1, "Should have at least 1 die result");
-            
+
             // All results should be valid d20 rolls
             for &roll in &results {
-                assert!(roll >= 1 && roll <= 20, "All rolls should be 1-20, got {}", roll);
+                assert!(
+                    roll >= 1 && roll <= 20,
+                    "All rolls should be 1-20, got {}",
+                    roll
+                );
             }
         }
 
@@ -1979,13 +2115,17 @@ mod tests {
             // Assert
             assert!(result.is_ok(), "Exploding less than should work");
             let results = result.unwrap();
-            
+
             // Should have at least 2 dice
             assert!(results.len() >= 2, "Should have at least 2 dice results");
-            
+
             // All results should be valid d12 rolls
             for &roll in &results {
-                assert!(roll >= 1 && roll <= 12, "All rolls should be 1-12, got {}", roll);
+                assert!(
+                    roll >= 1 && roll <= 12,
+                    "All rolls should be 1-12, got {}",
+                    roll
+                );
             }
         }
 
@@ -2000,13 +2140,17 @@ mod tests {
             // Assert
             assert!(result.is_ok(), "Implicit single die exploding should work");
             let results = result.unwrap();
-            
+
             // Should have at least 1 die
             assert!(results.len() >= 1, "Should have at least 1 die result");
-            
+
             // All results should be valid d6 rolls
             for &roll in &results {
-                assert!(roll >= 1 && roll <= 6, "All rolls should be 1-6, got {}", roll);
+                assert!(
+                    roll >= 1 && roll <= 6,
+                    "All rolls should be 1-6, got {}",
+                    roll
+                );
             }
         }
 
@@ -2019,18 +2163,21 @@ mod tests {
             for _ in 0..20 {
                 let result = roll(notation);
                 assert!(result.is_ok(), "Exploding dice should work consistently");
-                
+
                 let results = result.unwrap();
                 assert!(results.len() >= 2, "Should always have at least 2 dice");
-                
+
                 // All results should be valid d8 rolls
                 for &roll in &results {
                     assert!(roll >= 1 && roll <= 8, "All rolls should be 1-8");
                 }
-                
+
                 // Total should be reasonable (at least 2, but not impossibly high)
                 let total: i32 = results.iter().sum();
-                assert!(total >= 2 && total <= 200, "Total should be reasonable range");
+                assert!(
+                    total >= 2 && total <= 200,
+                    "Total should be reasonable range"
+                );
             }
         }
 
@@ -2045,13 +2192,17 @@ mod tests {
             // Assert
             assert!(result.is_ok(), "Shadowrun exploding sixes should work");
             let results = result.unwrap();
-            
+
             // Should have at least 4 dice
             assert!(results.len() >= 4, "Should have at least 4 dice results");
-            
+
             // All results should be valid d6 rolls
             for &roll in &results {
-                assert!(roll >= 1 && roll <= 6, "All rolls should be 1-6, got {}", roll);
+                assert!(
+                    roll >= 1 && roll <= 6,
+                    "All rolls should be 1-6, got {}",
+                    roll
+                );
             }
         }
 
@@ -2060,15 +2211,15 @@ mod tests {
             // Test exploding on specific number (limited iterations to avoid long test)
             let result1 = roll("d6!6"); // Explode on 6 instead of 1 (less frequent)
             assert!(result1.is_ok(), "Exploding on 6 should work");
-            
+
             // Test exploding on max value
             let result2 = roll("d20!");
             assert!(result2.is_ok(), "Exploding on max should work");
-            
+
             // Test exploding with comparison
             let result3 = roll("d10!>8");
             assert!(result3.is_ok(), "Exploding >8 should work");
-            
+
             let result4 = roll("d10!<3");
             assert!(result4.is_ok(), "Exploding <3 should work");
         }
@@ -2084,15 +2235,19 @@ mod tests {
             // Assert
             assert!(result.is_ok(), "Multiple exploding dice should work");
             let results = result.unwrap();
-            
+
             // Should have at least 5 dice (the original rolls)
             assert!(results.len() >= 5, "Should have at least 5 dice results");
-            
+
             // All results should be valid d6 rolls
             for &roll in &results {
-                assert!(roll >= 1 && roll <= 6, "All rolls should be 1-6, got {}", roll);
+                assert!(
+                    roll >= 1 && roll <= 6,
+                    "All rolls should be 1-6, got {}",
+                    roll
+                );
             }
-            
+
             // Total should be at least 5
             let total: i32 = results.iter().sum();
             assert!(total >= 5, "Total should be at least 5");
