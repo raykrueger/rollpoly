@@ -27,10 +27,6 @@ struct Cli {
     #[arg(help = "Dice notation like '4d10 + 17', '2d20 - 3', etc.")]
     dice: Option<String>,
 
-    /// Verbose output
-    #[arg(short, long)]
-    verbose: bool,
-
     /// Number of times to repeat the roll
     #[arg(short = 'n', long, default_value = "1")]
     repeat: usize,
@@ -47,10 +43,6 @@ enum Commands {
         /// Number of times to repeat the roll
         #[arg(short = 'n', long, default_value = "1")]
         repeat: usize,
-
-        /// Verbose output
-        #[arg(short, long)]
-        verbose: bool,
     },
     /// Show examples of dice notation
     Examples,
@@ -74,12 +66,8 @@ fn main() -> Result<()> {
     let cli = Cli::parse();
 
     match cli.command {
-        Some(Commands::Roll {
-            notation,
-            repeat,
-            verbose,
-        }) => {
-            roll_dice(&notation, repeat, verbose)
+        Some(Commands::Roll { notation, repeat }) => {
+            roll_dice(&notation, repeat)
                 .with_context(|| format!("Failed to roll dice with notation '{notation}'"))?;
         }
         Some(Commands::Examples) => {
@@ -96,7 +84,7 @@ fn main() -> Result<()> {
         None => {
             // Handle direct dice notation or show help
             if let Some(dice_notation) = cli.dice {
-                roll_dice(&dice_notation, cli.repeat, cli.verbose).with_context(|| {
+                roll_dice(&dice_notation, cli.repeat).with_context(|| {
                     format!("Failed to roll dice with notation '{dice_notation}'")
                 })?;
             } else {
@@ -109,8 +97,8 @@ fn main() -> Result<()> {
     Ok(())
 }
 
-fn roll_dice(notation: &str, repeat: usize, verbose: bool) -> Result<()> {
-    if verbose {
+fn roll_dice(notation: &str, repeat: usize) -> Result<()> {
+    if repeat > 1 {
         println!("Rolling '{notation}' {repeat} time(s)");
     }
 
@@ -121,17 +109,9 @@ fn roll_dice(notation: &str, repeat: usize, verbose: bool) -> Result<()> {
         let sum = results.iter().sum::<i32>();
 
         if repeat > 1 {
-            if verbose {
-                println!(
-                    "Roll {i}: You rolled a {sum} with {notation} using dice {results:?}"
-                );
-            } else {
-                println!("Roll {i}: You rolled a {sum} with dice {results:?}");
-            }
-        } else if verbose {
-            println!("You rolled a {sum} with {notation} using dice {results:?}");
+            println!("Roll {i}: You rolled a {sum} with {notation} using dice {results:?}");
         } else {
-            println!("You rolled a {sum} with dice {results:?}");
+            println!("You rolled a {sum} with {notation} using dice {results:?}");
         }
     }
 
@@ -165,11 +145,11 @@ fn show_examples() {
     println!();
     println!("Using subcommands:");
     println!("  rkdice roll '2d6 + 3' -n 5    # Roll 5 times");
-    println!("  rkdice roll '4d6K3' -n 3 -v   # Roll with verbose output");
+    println!("  rkdice roll '4d6K3' -n 3      # Roll multiple times");
     println!("  rkdice stats 3d6 -n 10000     # Statistical analysis");
+    println!("  rkdice stats 2d6 -n 100 -v    # Stats with verbose distribution");
     println!();
     println!("Options:");
-    println!("  -v, --verbose     # Show detailed output");
     println!("  -n, --repeat N    # Repeat the roll N times");
 }
 
