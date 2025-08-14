@@ -148,6 +148,58 @@ fn parse_and_roll_dice(notation: &str) -> Option<Vec<i32>> {
         return parse_arithmetic_operation(notation, "/");
     }
 
+    // Handle success counting syntax (e.g., "4d20>19", "10d12<3")
+    if let Some((count, sides, comparison, target)) = parse_success_dice(notation) {
+        let mut success_count = 0;
+        
+        // Roll all the dice and count successes
+        for _ in 0..count {
+            let roll = rng.gen_range(1..=sides);
+            
+            let is_success = match comparison {
+                SuccessComparison::GreaterThan => roll > target,
+                SuccessComparison::LessThan => roll < target,
+            };
+            
+            if is_success {
+                success_count += 1;
+            }
+        }
+        
+        // Return the success count as the final result
+        return Some(vec![success_count]);
+    }
+
+    // Handle success/failure counting syntax (e.g., "10d10>6f<3", "4d20<5f>19")
+    if let Some((count, sides, success_comp, success_target, failure_comp, failure_target)) = parse_success_failure_dice(notation) {
+        let mut net_successes = 0;
+        
+        // Roll all the dice and count successes/failures
+        for _ in 0..count {
+            let roll = rng.gen_range(1..=sides);
+            
+            let is_success = match success_comp {
+                SuccessComparison::GreaterThan => roll > success_target,
+                SuccessComparison::LessThan => roll < success_target,
+            };
+            
+            let is_failure = match failure_comp {
+                SuccessComparison::GreaterThan => roll > failure_target,
+                SuccessComparison::LessThan => roll < failure_target,
+            };
+            
+            if is_success {
+                net_successes += 1;
+            }
+            if is_failure {
+                net_successes -= 1;
+            }
+        }
+        
+        // Return the net success count
+        return Some(vec![net_successes]);
+    }
+
     // Handle keep highest/lowest syntax (e.g., "4d10K", "7d12K3", "3d6k", "100d6k99")
     if let Some((count, sides, keep_type, keep_count)) = parse_keep_dice(notation) {
         let mut results = Vec::new();
@@ -200,7 +252,101 @@ enum DiceOperation {
     DropLowest,
 }
 
-/// Parses keep/drop dice notation like "4d10K", "7d12K3", "3d6k", "6d8X", "5d10x3"
+#[derive(Debug, Clone, Copy)]
+enum SuccessComparison {
+    GreaterThan,
+    LessThan,
+}
+
+/// Parses success counting dice notation like "4d20>19", "10d12<3"
+fn parse_success_dice(notation: &str) -> Option<(usize, i32, SuccessComparison, i32)> {
+    // Find 'd' first
+    let d_pos = notation.find('d')?;
+    let count_str = &notation[..d_pos];
+    let rest = &notation[d_pos + 1..];
+    
+    // Handle implicit count (e.g., "d20>15" means "1d20>15")
+    let count = if count_str.is_empty() {
+        1
+    } else {
+        count_str.parse().ok()?
+    };
+    
+    // Find > or <
+    let (comparison, comp_pos) = if let Some(pos) = rest.find('>') {
+        (SuccessComparison::GreaterThan, pos)
+    } else if let Some(pos) = rest.find('<') {
+        (SuccessComparison::LessThan, pos)
+    } else {
+        return None;
+    };
+    
+    // Parse sides (before comparison character)
+    let sides_str = &rest[..comp_pos];
+    let sides = sides_str.parse().ok()?;
+    
+    // Parse target (after comparison character)
+    let target_str = &rest[comp_pos + 1..];
+    let target = target_str.parse().ok()?;
+    
+    Some((count, sides, comparison, target))
+}
+
+/// Parses success/failure counting dice notation like "10d10>6f<3", "4d20<5f>19"
+fn parse_success_failure_dice(notation: &str) -> Option<(usize, i32, SuccessComparison, i32, SuccessComparison, i32)> {
+    // Find 'd' first
+    let d_pos = notation.find('d')?;
+    let count_str = &notation[..d_pos];
+    let rest = &notation[d_pos + 1..];
+    
+    // Handle implicit count
+    let count = if count_str.is_empty() {
+        1
+    } else {
+        count_str.parse().ok()?
+    };
+    
+    // Find 'f' to split success and failure parts
+    let f_pos = rest.find('f')?;
+    let success_part = &rest[..f_pos];
+    let failure_part = &rest[f_pos + 1..];
+    
+    // Parse success condition
+    let (success_comp, success_comp_pos) = if let Some(pos) = success_part.find('>') {
+        (SuccessComparison::GreaterThan, pos)
+    } else if let Some(pos) = success_part.find('<') {
+        (SuccessComparison::LessThan, pos)
+    } else {
+        return None;
+    };
+    
+    let sides_str = &success_part[..success_comp_pos];
+    let sides = sides_str.parse().ok()?;
+    let success_target_str = &success_part[success_comp_pos + 1..];
+    let success_target = success_target_str.parse().ok()?;
+    
+    // Parse failure condition
+    let (failure_comp, failure_comp_pos) = if let Some(pos) = failure_part.find('>') {
+        (SuccessComparison::GreaterThan, pos)
+    } else if let Some(pos) = failure_part.find('<') {
+        (SuccessComparison::LessThan, pos)
+    } else {
+        return None;
+    };
+    
+    let failure_target_str = &failure_part[failure_comp_pos + 1..];
+    let failure_target = failure_target_str.parse().ok()?;
+    
+    // Validate that success and failure conditions don't conflict
+    // Both can't be greater than or both less than
+    match (success_comp, failure_comp) {
+        (SuccessComparison::GreaterThan, SuccessComparison::GreaterThan) | 
+        (SuccessComparison::LessThan, SuccessComparison::LessThan) => return None,
+        _ => {}
+    }
+    
+    Some((count, sides, success_comp, success_target, failure_comp, failure_target))
+}
 fn parse_keep_dice(notation: &str) -> Option<(usize, i32, DiceOperation, usize)> {
     // Find 'd' first
     let d_pos = notation.find('d')?;
@@ -1383,6 +1529,150 @@ mod tests {
                 let sum: i32 = results.iter().sum();
                 assert!(sum >= 5 && sum <= 26, "Sum should be in valid range");
             }
+        }
+    }
+
+    mod success_counting_operations {
+        use super::*;
+
+        #[test]
+        fn test_count_successes_greater_than() {
+            // Arrange
+            let notation = "5d10>7";
+
+            // Act
+            let result = roll(notation);
+
+            // Assert
+            assert!(result.is_ok(), "Success counting should work");
+            let results = result.unwrap();
+            assert_eq!(results.len(), 1, "Should return single success count");
+            
+            // Success count should be between 0 and 5
+            let success_count = results[0];
+            assert!(success_count >= 0 && success_count <= 5, "Success count should be 0-5, got {}", success_count);
+        }
+
+        #[test]
+        fn test_count_successes_less_than() {
+            // Arrange
+            let notation = "8d6<3";
+
+            // Act
+            let result = roll(notation);
+
+            // Assert
+            assert!(result.is_ok(), "Success counting with < should work");
+            let results = result.unwrap();
+            assert_eq!(results.len(), 1, "Should return single success count");
+            
+            // Success count should be between 0 and 8
+            let success_count = results[0];
+            assert!(success_count >= 0 && success_count <= 8, "Success count should be 0-8, got {}", success_count);
+        }
+
+        #[test]
+        fn test_world_of_darkness_style() {
+            // Arrange - World of Darkness typically uses d10>7
+            let notation = "5d10>7";
+
+            // Act
+            let result = roll(notation);
+
+            // Assert
+            assert!(result.is_ok(), "World of Darkness style should work");
+            let results = result.unwrap();
+            assert_eq!(results.len(), 1, "Should return single success count");
+            
+            let success_count = results[0];
+            assert!(success_count >= 0 && success_count <= 5, "Success count should be valid range");
+        }
+
+        #[test]
+        fn test_shadowrun_style() {
+            // Arrange - Shadowrun typically uses d6>4
+            let notation = "12d6>4";
+
+            // Act
+            let result = roll(notation);
+
+            // Assert
+            assert!(result.is_ok(), "Shadowrun style should work");
+            let results = result.unwrap();
+            assert_eq!(results.len(), 1, "Should return single success count");
+            
+            let success_count = results[0];
+            assert!(success_count >= 0 && success_count <= 12, "Success count should be 0-12, got {}", success_count);
+        }
+
+        #[test]
+        fn test_success_failure_counting() {
+            // Arrange
+            let notation = "10d10>6f<3";
+
+            // Act
+            let result = roll(notation);
+
+            // Assert
+            assert!(result.is_ok(), "Success/failure counting should work");
+            let results = result.unwrap();
+            assert_eq!(results.len(), 1, "Should return single net success count");
+            
+            // Net successes can be negative due to failures
+            let net_successes = results[0];
+            assert!(net_successes >= -10 && net_successes <= 10, "Net successes should be -10 to 10, got {}", net_successes);
+        }
+
+        #[test]
+        fn test_success_failure_opposite_conditions() {
+            // Arrange
+            let notation = "4d20<5f>19";
+
+            // Act
+            let result = roll(notation);
+
+            // Assert
+            assert!(result.is_ok(), "Success < failure > should work");
+            let results = result.unwrap();
+            assert_eq!(results.len(), 1, "Should return single net success count");
+            
+            let net_successes = results[0];
+            assert!(net_successes >= -4 && net_successes <= 4, "Net successes should be -4 to 4, got {}", net_successes);
+        }
+
+        #[test]
+        fn test_success_counting_consistency() {
+            // Arrange
+            let notation = "6d6>4";
+
+            // Act & Assert - Test multiple times to ensure consistency
+            for _ in 0..20 {
+                let result = roll(notation);
+                assert!(result.is_ok(), "Success counting should work consistently");
+                
+                let results = result.unwrap();
+                assert_eq!(results.len(), 1, "Should always return single success count");
+                
+                let success_count = results[0];
+                assert!(success_count >= 0 && success_count <= 6, "Success count should always be 0-6");
+            }
+        }
+
+        #[test]
+        fn test_implicit_single_die_success_counting() {
+            // Arrange
+            let notation = "d20>15";
+
+            // Act
+            let result = roll(notation);
+
+            // Assert
+            assert!(result.is_ok(), "Implicit single die success counting should work");
+            let results = result.unwrap();
+            assert_eq!(results.len(), 1, "Should return single success count");
+            
+            let success_count = results[0];
+            assert!(success_count >= 0 && success_count <= 1, "Single die success count should be 0 or 1");
         }
     }
 

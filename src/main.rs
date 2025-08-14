@@ -157,6 +157,17 @@ fn show_examples() {
     println!("  rkdice 4d6x       # Character generation (drop lowest)");
     println!("  rkdice '6d6X2 + 5' # Drop highest 2 of 6d6, then add 5");
     println!();
+    println!("Count successes (> or <):");
+    println!("  rkdice '5d10>7'   # Count rolls above 7 (World of Darkness)");
+    println!("  rkdice '12d6>4'   # Count rolls above 4 (Shadowrun)");
+    println!("  rkdice '8d6<3'    # Count rolls below 3");
+    println!("  rkdice 'd20>15'   # Single die success check");
+    println!();
+    println!("Count successes with failures (f):");
+    println!("  rkdice '10d10>6f<3' # Successes >6, failures <3");
+    println!("  rkdice '4d20<5f>19' # Successes <5, failures >19");
+    println!("  rkdice '6d6>4f<2'   # Advanced dice pool mechanics");
+    println!();
     println!("Using subcommands:");
     println!("  rkdice roll '2d6 + 3' -n 5    # Roll 5 times");
     println!("  rkdice roll '4d6K3' -n 3      # Roll multiple times");
