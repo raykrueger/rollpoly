@@ -1,6 +1,6 @@
-# RKDice Terminal Dice Rolling
+# Rollpoly - Advanced Dice Rolling
 
-A simple Rust 2024 application to roll dice in the terminal. Also supports being imported as a library.
+A comprehensive Rust 2024 application for rolling polyhedral dice in the terminal. Also supports being imported as a library with advanced dice mechanics for tabletop gaming.
 
 ## Syntax
 
@@ -117,7 +117,7 @@ once, or uppercase 'R' to keep rerolling until the condition is no longer met.
 ### Project Structure
 
 ```
-rkdice/
+rollpoly/
 ├── src/
 │   ├── lib.rs              # Core dice rolling library
 │   └── main.rs             # CLI application
@@ -140,7 +140,7 @@ rkdice/
 ```bash
 # Clone the repository
 git clone <repository-url>
-cd rkdice
+cd rollpoly
 
 # The pre-commit hook is automatically active
 # It runs full quality checks on every commit
@@ -257,7 +257,7 @@ cargo bench
 
 # Profile with flamegraph
 cargo install flamegraph
-cargo flamegraph --bin rkdice -- "1000d6"
+cargo flamegraph --bin rollpoly -- "1000d6"
 ```
 
 ### Scripts Reference

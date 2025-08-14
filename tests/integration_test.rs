@@ -12,12 +12,12 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-//! Integration tests for the RKDice library
+//! Integration tests for the Rollpoly library
 //!
 //! These tests verify the public API functionality and ensure that
 //! the library works correctly when used as an external dependency.
 
-use rkdice::roll;
+use rollpoly::roll;
 
 #[test]
 fn test_public_api_basic_dice_rolling() {

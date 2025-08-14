@@ -12,18 +12,18 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-//! Basic usage example for the RKDice library
+//! Basic usage example for the Rollpoly library
 //!
-//! This example demonstrates how to use the RKDice library to roll dice
+//! This example demonstrates how to use the Rollpoly library to roll dice
 //! with various notations and handle both successful rolls and errors.
 //!
 //! Run this example with: `cargo run --example basic_usage`
 
-use rkdice::roll;
+use rollpoly::roll;
 
 fn main() {
-    println!("RKDice Library - Basic Usage Example");
-    println!("====================================");
+    println!("Rollpoly Library - Basic Usage Example");
+    println!("======================================");
 
     // Basic dice rolling examples
     let examples = vec![

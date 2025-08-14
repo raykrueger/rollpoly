@@ -1,16 +1,16 @@
 [package]
-name = "rkdice"
+name = "rollpoly"
 version = "0.1.0"
 edition = "2021"
 rust-version = "1.70"
 authors = ["rkrueger"]
 license = "Apache-2.0"
-description = "A simple Rust application to roll dice in the terminal"
-homepage = "https://github.com/rkrueger/rkdice"
-repository = "https://github.com/rkrueger/rkdice"
-documentation = "https://docs.rs/rkdice"
+description = "A comprehensive dice rolling library and CLI for tabletop gaming with advanced polyhedral dice support"
+homepage = "https://github.com/rkrueger/rollpoly"
+repository = "https://github.com/rkrueger/rollpoly"
+documentation = "https://docs.rs/rollpoly"
 readme = "README.md"
-keywords = ["dice", "gaming", "cli", "terminal"]
+keywords = ["dice", "gaming", "cli", "terminal", "polyhedral"]
 categories = ["command-line-utilities", "games"]
 
 [dependencies]

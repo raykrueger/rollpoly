@@ -16,8 +16,8 @@ use anyhow::{Context, Result};
 use clap::{Parser, Subcommand};
 
 #[derive(Parser)]
-#[command(name = "rkdice")]
-#[command(about = "A terminal dice rolling application", long_about = None)]
+#[command(name = "rollpoly")]
+#[command(about = "A comprehensive dice rolling application for tabletop gaming", long_about = None)]
 #[command(version)]
 struct Cli {
     #[command(subcommand)]
@@ -103,7 +103,7 @@ fn roll_dice(notation: &str, repeat: usize) -> Result<()> {
     }
 
     for i in 1..=repeat {
-        let results = rkdice::roll(notation)
+        let results = rollpoly::roll(notation)
             .with_context(|| format!("Invalid dice notation: '{notation}'"))?;
 
         let sum = results.iter().sum::<i32>();
@@ -119,73 +119,73 @@ fn roll_dice(notation: &str, repeat: usize) -> Result<()> {
 }
 
 fn show_examples() {
-    println!("RKDice - Dice Notation Examples");
-    println!("===============================");
+    println!("Rollpoly - Dice Notation Examples");
+    println!("=================================");
     println!();
     println!("Basic dice rolls:");
-    println!("  rkdice 1d6        # Roll one 6-sided die");
-    println!("  rkdice 4d10       # Roll four 10-sided dice");
-    println!("  rkdice d20        # Roll one 20-sided die (implicit count)");
+    println!("  rollpoly 1d6        # Roll one 6-sided die");
+    println!("  rollpoly 4d10       # Roll four 10-sided dice");
+    println!("  rollpoly d20        # Roll one 20-sided die (implicit count)");
     println!();
     println!("Arithmetic operations:");
-    println!("  rkdice '3d6 + 5'  # Roll 3d6 and add 5");
-    println!("  rkdice '2d20 - 3' # Roll 2d20 and subtract 3");
-    println!("  rkdice '1d4 * 2'  # Roll 1d4 and multiply by 2");
-    println!("  rkdice '5d6 / 3'  # Roll 5d6 and divide by 3");
-    println!("  rkdice '4d8 // 2' # Roll 4d8 and floor divide by 2");
+    println!("  rollpoly '3d6 + 5'  # Roll 3d6 and add 5");
+    println!("  rollpoly '2d20 - 3' # Roll 2d20 and subtract 3");
+    println!("  rollpoly '1d4 * 2'  # Roll 1d4 and multiply by 2");
+    println!("  rollpoly '5d6 / 3'  # Roll 5d6 and divide by 3");
+    println!("  rollpoly '4d8 // 2' # Roll 4d8 and floor divide by 2");
     println!();
     println!("Dice-to-dice operations:");
-    println!("  rkdice '2d12 + 1d6' # Daggerheart with Advantage");
-    println!("  rkdice '2d12 - 1d6' # Daggerheart with Disadvantage");
-    println!("  rkdice '3d6 + 2d4'  # Multiple dice pools combined");
-    println!("  rkdice '4d6K3 + 1d4' # Keep highest 3 of 4d6, add 1d4");
+    println!("  rollpoly '2d12 + 1d6' # Daggerheart with Advantage");
+    println!("  rollpoly '2d12 - 1d6' # Daggerheart with Disadvantage");
+    println!("  rollpoly '3d6 + 2d4'  # Multiple dice pools combined");
+    println!("  rollpoly '4d6K3 + 1d4' # Keep highest 3 of 4d6, add 1d4");
     println!();
     println!("Keep highest (K) and keep lowest (k):");
-    println!("  rkdice 4d10K      # Roll 4d10 and keep only the highest");
-    println!("  rkdice 7d12K3     # Roll 7d12 and keep the highest 3");
-    println!("  rkdice 3d6k       # Roll 3d6 and keep only the lowest");
-    println!("  rkdice 5d6k3      # Roll 5d6 and keep the lowest 3");
-    println!("  rkdice 2d20K      # Advantage roll (D&D 5e)");
-    println!("  rkdice 2d20k      # Disadvantage roll (D&D 5e)");
-    println!("  rkdice '4d6K3 + 2' # Keep highest 3 of 4d6, then add 2");
+    println!("  rollpoly 4d10K      # Roll 4d10 and keep only the highest");
+    println!("  rollpoly 7d12K3     # Roll 7d12 and keep the highest 3");
+    println!("  rollpoly 3d6k       # Roll 3d6 and keep only the lowest");
+    println!("  rollpoly 5d6k3      # Roll 5d6 and keep the lowest 3");
+    println!("  rollpoly 2d20K      # Advantage roll (D&D 5e)");
+    println!("  rollpoly 2d20k      # Disadvantage roll (D&D 5e)");
+    println!("  rollpoly '4d6K3 + 2' # Keep highest 3 of 4d6, then add 2");
     println!();
     println!("Drop highest (X) and drop lowest (x):");
-    println!("  rkdice 6d8X       # Roll 6d8 and drop the highest");
-    println!("  rkdice 5d10X3     # Roll 5d10 and drop the highest 3");
-    println!("  rkdice 6d8x       # Roll 6d8 and drop the lowest");
-    println!("  rkdice 5d10x3     # Roll 5d10 and drop the lowest 3");
-    println!("  rkdice 4d6x       # Character generation (drop lowest)");
-    println!("  rkdice '6d6X2 + 5' # Drop highest 2 of 6d6, then add 5");
+    println!("  rollpoly 6d8X       # Roll 6d8 and drop the highest");
+    println!("  rollpoly 5d10X3     # Roll 5d10 and drop the highest 3");
+    println!("  rollpoly 6d8x       # Roll 6d8 and drop the lowest");
+    println!("  rollpoly 5d10x3     # Roll 5d10 and drop the lowest 3");
+    println!("  rollpoly 4d6x       # Character generation (drop lowest)");
+    println!("  rollpoly '6d6X2 + 5' # Drop highest 2 of 6d6, then add 5");
     println!();
     println!("Count successes (> or <):");
-    println!("  rkdice '5d10>7'   # Count rolls above 7 (World of Darkness)");
-    println!("  rkdice '12d6>4'   # Count rolls above 4 (Shadowrun)");
-    println!("  rkdice '8d6<3'    # Count rolls below 3");
-    println!("  rkdice 'd20>15'   # Single die success check");
+    println!("  rollpoly '5d10>7'   # Count rolls above 7 (World of Darkness)");
+    println!("  rollpoly '12d6>4'   # Count rolls above 4 (Shadowrun)");
+    println!("  rollpoly '8d6<3'    # Count rolls below 3");
+    println!("  rollpoly 'd20>15'   # Single die success check");
     println!();
     println!("Count successes with failures (f):");
-    println!("  rkdice '10d10>6f<3' # Successes >6, failures <3");
-    println!("  rkdice '4d20<5f>19' # Successes <5, failures >19");
-    println!("  rkdice '6d6>4f<2'   # Advanced dice pool mechanics");
+    println!("  rollpoly '10d10>6f<3' # Successes >6, failures <3");
+    println!("  rollpoly '4d20<5f>19' # Successes <5, failures >19");
+    println!("  rollpoly '6d6>4f<2'   # Advanced dice pool mechanics");
     println!();
     println!("Exploding dice (!):");
-    println!("  rkdice '2d6!'       # Explode on max (6s)");
-    println!("  rkdice '4d6!6'      # Explode on 6s (Shadowrun)");
-    println!("  rkdice '3d10!10'    # Explode on 10s");
-    println!("  rkdice 'd20!>15'    # Explode on 16+ (Rule of 6 variant)");
-    println!("  rkdice '2d12!<3'    # Explode on 1s and 2s");
+    println!("  rollpoly '2d6!'       # Explode on max (6s)");
+    println!("  rollpoly '4d6!6'      # Explode on 6s (Shadowrun)");
+    println!("  rollpoly '3d10!10'    # Explode on 10s");
+    println!("  rollpoly 'd20!>15'    # Explode on 16+ (Rule of 6 variant)");
+    println!("  rollpoly '2d12!<3'    # Explode on 1s and 2s");
     println!();
     println!("Rerolling Dice (r/R):");
-    println!("  rkdice '4d6r1'      # Reroll any 1s once (Great Weapon Fighting)");
-    println!("  rkdice '2d6r<3'     # Reroll anything under 3 once");
-    println!("  rkdice '3d8R1'      # Keep rerolling 1s until no 1s remain");
-    println!("  rkdice '4d10R<3'    # Keep rerolling anything under 3");
+    println!("  rollpoly '4d6r1'      # Reroll any 1s once (Great Weapon Fighting)");
+    println!("  rollpoly '2d6r<3'     # Reroll anything under 3 once");
+    println!("  rollpoly '3d8R1'      # Keep rerolling 1s until no 1s remain");
+    println!("  rollpoly '4d10R<3'    # Keep rerolling anything under 3");
     println!();
     println!("Using subcommands:");
-    println!("  rkdice roll '2d6 + 3' -n 5    # Roll 5 times");
-    println!("  rkdice roll '4d6K3' -n 3      # Roll multiple times");
-    println!("  rkdice stats 3d6 -n 10000     # Statistical analysis");
-    println!("  rkdice stats 2d6 -n 100 -v    # Stats with verbose distribution");
+    println!("  rollpoly roll '2d6 + 3' -n 5    # Roll 5 times");
+    println!("  rollpoly roll '4d6K3' -n 3      # Roll multiple times");
+    println!("  rollpoly stats 3d6 -n 10000     # Statistical analysis");
+    println!("  rollpoly stats 2d6 -n 100 -v    # Stats with verbose distribution");
     println!();
     println!("Options:");
     println!("  -n, --repeat N    # Repeat the roll N times");
@@ -199,7 +199,7 @@ fn run_statistics(notation: &str, rolls: usize, verbose: bool) -> Result<()> {
     let mut sums = Vec::new();
 
     for _ in 0..rolls {
-        let roll_result = rkdice::roll(notation)
+        let roll_result = rollpoly::roll(notation)
             .with_context(|| format!("Invalid dice notation for statistics: '{notation}'"))?;
         let sum: i32 = roll_result.iter().sum();
         sums.push(sum);
@@ -254,18 +254,18 @@ fn run_statistics(notation: &str, rolls: usize, verbose: bool) -> Result<()> {
 }
 
 fn show_interactive_mode() {
-    println!("RKDice - Terminal Dice Rolling");
-    println!("==============================");
+    println!("Rollpoly - Advanced Dice Rolling");
+    println!("================================");
     println!();
     println!("Usage:");
-    println!("  rkdice <DICE_NOTATION>     # Roll dice directly");
-    println!("  rkdice roll <NOTATION>     # Roll dice using subcommand");
-    println!("  rkdice examples            # Show notation examples");
-    println!("  rkdice stats <NOTATION>    # Run statistical analysis");
-    println!("  rkdice --help              # Show detailed help");
+    println!("  rollpoly <DICE_NOTATION>     # Roll dice directly");
+    println!("  rollpoly roll <NOTATION>     # Roll dice using subcommand");
+    println!("  rollpoly examples            # Show notation examples");
+    println!("  rollpoly stats <NOTATION>    # Run statistical analysis");
+    println!("  rollpoly --help              # Show detailed help");
     println!();
     println!("Examples:");
-    println!("  rkdice 2d6");
-    println!("  rkdice '3d6 + 5'");
-    println!("  rkdice roll 4d10 -n 5");
+    println!("  rollpoly 2d6");
+    println!("  rollpoly '3d6 + 5'");
+    println!("  rollpoly roll 4d10 -n 5");
 }

@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-//! `RKDice` - A dice rolling library for terminal applications
+//! `Rollpoly` - A comprehensive dice rolling library for tabletop gaming
 //!
 //! This library provides functionality to parse and evaluate dice notation
 //! strings and return the results as arrays of numbers.
@@ -27,7 +27,7 @@
 //! # Quick Start
 //!
 //! ```
-//! use rkdice::roll;
+//! use rollpoly::roll;
 //!
 //! // Roll 4 ten-sided dice and add 17
 //! let results = roll("4d10 + 17").unwrap();
@@ -106,7 +106,7 @@ pub enum DiceError {
 /// # Examples
 ///
 /// ```
-/// use rkdice::roll;
+/// use rollpoly::roll;
 ///
 /// let results = roll("2d6 + 3").unwrap();
 /// assert_eq!(results.len(), 3); // 2 dice + 1 modifier
