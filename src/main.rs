@@ -154,8 +154,18 @@ fn show_examples() {
     println!("  rkdice '5d6 / 3'  # Roll 5d6 and divide by 3");
     println!("  rkdice '4d8 // 2' # Roll 4d8 and floor divide by 2");
     println!();
+    println!("Keep highest (K) and keep lowest (k):");
+    println!("  rkdice 4d10K      # Roll 4d10 and keep only the highest");
+    println!("  rkdice 7d12K3     # Roll 7d12 and keep the highest 3");
+    println!("  rkdice 3d6k       # Roll 3d6 and keep only the lowest");
+    println!("  rkdice 5d6k3      # Roll 5d6 and keep the lowest 3");
+    println!("  rkdice 2d20K      # Advantage roll (D&D 5e)");
+    println!("  rkdice 2d20k      # Disadvantage roll (D&D 5e)");
+    println!("  rkdice '4d6K3 + 2' # Keep highest 3 of 4d6, then add 2");
+    println!();
     println!("Using subcommands:");
     println!("  rkdice roll '2d6 + 3' -n 5    # Roll 5 times");
+    println!("  rkdice roll '4d6K3' -n 3 -v   # Roll with verbose output");
     println!("  rkdice stats 3d6 -n 10000     # Statistical analysis");
     println!();
     println!("Options:");

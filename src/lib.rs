@@ -135,7 +135,7 @@ fn parse_and_roll_dice(notation: &str) -> Option<Vec<i32>> {
     use rand::Rng;
     let mut rng = rand::thread_rng();
 
-    // Handle different operators
+    // Handle different operators (arithmetic operations first)
     if notation.contains(" + ") {
         return parse_arithmetic_operation(notation, "+");
     } else if notation.contains(" - ") {
@@ -148,6 +148,30 @@ fn parse_and_roll_dice(notation: &str) -> Option<Vec<i32>> {
         return parse_arithmetic_operation(notation, "/");
     }
 
+    // Handle keep highest/lowest syntax (e.g., "4d10K", "7d12K3", "3d6k", "100d6k99")
+    if let Some((count, sides, keep_type, keep_count)) = parse_keep_dice(notation) {
+        let mut results = Vec::new();
+        
+        // Roll all the dice
+        for _ in 0..count {
+            results.push(rng.gen_range(1..=sides));
+        }
+        
+        // Sort and keep the specified dice
+        match keep_type {
+            KeepType::Highest => {
+                results.sort_unstable_by(|a, b| b.cmp(a)); // Sort descending (highest first)
+                results.truncate(keep_count);
+            }
+            KeepType::Lowest => {
+                results.sort_unstable(); // Sort ascending (lowest first)
+                results.truncate(keep_count);
+            }
+        }
+        
+        return Some(results);
+    }
+
     // Handle simple dice notation (e.g., "4d10", "d6")
     if let Some((count, sides)) = parse_simple_dice(notation) {
         let mut results = Vec::new();
@@ -158,6 +182,55 @@ fn parse_and_roll_dice(notation: &str) -> Option<Vec<i32>> {
     }
 
     None
+}
+
+#[derive(Debug, Clone, Copy)]
+enum KeepType {
+    Highest,
+    Lowest,
+}
+
+/// Parses keep highest/lowest dice notation like "4d10K", "7d12K3", "3d6k", "100d6k99"
+fn parse_keep_dice(notation: &str) -> Option<(usize, i32, KeepType, usize)> {
+    // Find 'd' first
+    let d_pos = notation.find('d')?;
+    let count_str = &notation[..d_pos];
+    let rest = &notation[d_pos + 1..];
+    
+    // Handle implicit count (e.g., "dK6" means "1dK6")
+    let count = if count_str.is_empty() {
+        1
+    } else {
+        count_str.parse().ok()?
+    };
+    
+    // Find K or k
+    let (keep_type, keep_pos) = if let Some(pos) = rest.find('K') {
+        (KeepType::Highest, pos)
+    } else if let Some(pos) = rest.find('k') {
+        (KeepType::Lowest, pos)
+    } else {
+        return None;
+    };
+    
+    // Parse sides (before K/k)
+    let sides_str = &rest[..keep_pos];
+    let sides = sides_str.parse().ok()?;
+    
+    // Parse keep count (after K/k)
+    let keep_str = &rest[keep_pos + 1..];
+    let keep_count = if keep_str.is_empty() {
+        1 // Default to keeping 1 die if no number specified
+    } else {
+        keep_str.parse().ok()?
+    };
+    
+    // Validate that we're not trying to keep more dice than we roll
+    if keep_count > count {
+        return None;
+    }
+    
+    Some((count, sides, keep_type, keep_count))
 }
 
 /// Parses simple dice notation like "4d10" or "d6"
@@ -194,30 +267,52 @@ fn parse_arithmetic_operation(notation: &str, operator: &str) -> Option<Vec<i32>
     let dice_part = parts[0].trim();
     let modifier_part = parts[1].trim();
 
-    // Parse the dice part
-    if let Some((count, sides)) = parse_simple_dice(dice_part) {
-        let mut results = Vec::new();
-
-        // Roll the dice
+    // Parse the dice part (could be simple dice or keep dice)
+    let mut results = if let Some((count, sides, keep_type, keep_count)) = parse_keep_dice(dice_part) {
+        // Handle keep dice with arithmetic
+        let mut dice_results = Vec::new();
+        
+        // Roll all the dice
         for _ in 0..count {
-            results.push(rng.gen_range(1..=sides));
+            dice_results.push(rng.gen_range(1..=sides));
         }
-
-        // Parse and add the modifier
-        if let Ok(modifier_value) = modifier_part.parse::<i32>() {
-            match operator {
-                "-" | "//" => results.push(-modifier_value), // Negative to distinguish from regular division
-                "+" | "*" | "/" => results.push(modifier_value),
-                _ => return None,
+        
+        // Sort and keep the specified dice
+        match keep_type {
+            KeepType::Highest => {
+                dice_results.sort_unstable_by(|a, b| b.cmp(a)); // Sort descending (highest first)
+                dice_results.truncate(keep_count);
             }
-        } else {
-            return None;
+            KeepType::Lowest => {
+                dice_results.sort_unstable(); // Sort ascending (lowest first)
+                dice_results.truncate(keep_count);
+            }
         }
-
-        Some(results)
+        
+        dice_results
+    } else if let Some((count, sides)) = parse_simple_dice(dice_part) {
+        // Handle simple dice with arithmetic
+        let mut dice_results = Vec::new();
+        for _ in 0..count {
+            dice_results.push(rng.gen_range(1..=sides));
+        }
+        dice_results
     } else {
-        None
+        return None;
+    };
+
+    // Parse and add the modifier
+    if let Ok(modifier_value) = modifier_part.parse::<i32>() {
+        match operator {
+            "-" | "//" => results.push(-modifier_value), // Negative to distinguish from regular division
+            "+" | "*" | "/" => results.push(modifier_value),
+            _ => return None,
+        }
+    } else {
+        return None;
     }
+
+    Some(results)
 }
 
 #[cfg(test)]
@@ -683,6 +778,150 @@ mod tests {
                     &format!("d6 at iteration {}", iteration),
                 );
             }
+        }
+    }
+
+    mod keep_dice_operations {
+        use super::*;
+
+        #[test]
+        fn test_keep_highest_single_die() {
+            // Arrange
+            let notation = "4d6K";
+
+            // Act
+            let result = roll(notation);
+
+            // Assert
+            assert!(result.is_ok(), "Keep highest should work");
+            let results = result.unwrap();
+            assert_eq!(results.len(), 1, "Should keep only 1 die");
+            assert!(results[0] >= 1 && results[0] <= 6, "Result should be valid die roll");
+        }
+
+        #[test]
+        fn test_keep_highest_multiple_dice() {
+            // Arrange
+            let notation = "7d12K3";
+
+            // Act
+            let result = roll(notation);
+
+            // Assert
+            assert!(result.is_ok(), "Keep highest multiple should work");
+            let results = result.unwrap();
+            assert_eq!(results.len(), 3, "Should keep exactly 3 dice");
+            
+            // Results should be in descending order (highest first)
+            for i in 1..results.len() {
+                assert!(
+                    results[i - 1] >= results[i],
+                    "Results should be in descending order: {:?}",
+                    results
+                );
+            }
+            
+            // All results should be valid
+            for &result in &results {
+                assert!(result >= 1 && result <= 12, "All results should be valid d12 rolls");
+            }
+        }
+
+        #[test]
+        fn test_keep_lowest_single_die() {
+            // Arrange
+            let notation = "3d6k";
+
+            // Act
+            let result = roll(notation);
+
+            // Assert
+            assert!(result.is_ok(), "Keep lowest should work");
+            let results = result.unwrap();
+            assert_eq!(results.len(), 1, "Should keep only 1 die");
+            assert!(results[0] >= 1 && results[0] <= 6, "Result should be valid die roll");
+        }
+
+        #[test]
+        fn test_keep_lowest_multiple_dice() {
+            // Arrange
+            let notation = "5d6k3";
+
+            // Act
+            let result = roll(notation);
+
+            // Assert
+            assert!(result.is_ok(), "Keep lowest multiple should work");
+            let results = result.unwrap();
+            assert_eq!(results.len(), 3, "Should keep exactly 3 dice");
+            
+            // Results should be in ascending order (lowest first)
+            for i in 1..results.len() {
+                assert!(
+                    results[i - 1] <= results[i],
+                    "Results should be in ascending order: {:?}",
+                    results
+                );
+            }
+            
+            // All results should be valid
+            for &result in &results {
+                assert!(result >= 1 && result <= 6, "All results should be valid d6 rolls");
+            }
+        }
+
+        #[test]
+        fn test_keep_highest_with_arithmetic() {
+            // Arrange
+            let notation = "4d6K2 + 5";
+
+            // Act
+            let result = roll(notation);
+
+            // Assert
+            assert!(result.is_ok(), "Keep highest with arithmetic should work");
+            let results = result.unwrap();
+            assert_eq!(results.len(), 3, "Should have 2 kept dice + 1 modifier");
+            
+            // Last element should be the modifier
+            assert_eq!(results[2], 5, "Last element should be the +5 modifier");
+            
+            // First two should be dice results in descending order
+            assert!(
+                results[0] >= results[1],
+                "Kept dice should be in descending order: {:?}",
+                results
+            );
+        }
+
+        #[test]
+        fn test_disadvantage_roll() {
+            // Arrange - This is a common D&D 5e disadvantage roll
+            let notation = "2d20k";
+
+            // Act
+            let result = roll(notation);
+
+            // Assert
+            assert!(result.is_ok(), "Disadvantage roll should work");
+            let results = result.unwrap();
+            assert_eq!(results.len(), 1, "Should keep only the lowest die");
+            assert!(results[0] >= 1 && results[0] <= 20, "Result should be valid d20 roll");
+        }
+
+        #[test]
+        fn test_advantage_roll() {
+            // Arrange - This is a common D&D 5e advantage roll
+            let notation = "2d20K";
+
+            // Act
+            let result = roll(notation);
+
+            // Assert
+            assert!(result.is_ok(), "Advantage roll should work");
+            let results = result.unwrap();
+            assert_eq!(results.len(), 1, "Should keep only the highest die");
+            assert!(results[0] >= 1 && results[0] <= 20, "Result should be valid d20 roll");
         }
     }
 
