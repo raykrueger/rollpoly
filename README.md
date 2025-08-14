@@ -103,6 +103,225 @@ Rerolling allows you to roll certain dice again based on specific conditions, re
 2d6r>4: Roll 2d6 and reroll anything over 4 once
 ```
 
+## Developer Guide
+
+### Prerequisites
+
+- **Rust 2024 Edition** (latest stable)
+- **Git** with hooks enabled
+- **Cargo** (comes with Rust)
+
+### Project Structure
+
+```
+rkdice/
+├── src/
+│   ├── lib.rs              # Core dice rolling library
+│   └── main.rs             # CLI application
+├── tests/
+│   └── integration_test.rs # Integration tests
+├── scripts/
+│   ├── full-checks.sh      # Quality assurance script
+│   └── enable-full-precommit.sh # Pre-commit setup
+├── .amazonq/
+│   └── rules/steering/     # AI tooling guidelines
+├── .git/hooks/
+│   └── pre-commit          # Automated quality checks
+└── README.md
+```
+
+### Development Workflow
+
+#### Initial Setup
+
+```bash
+# Clone the repository
+git clone <repository-url>
+cd rkdice
+
+# The pre-commit hook is automatically active
+# It runs full quality checks on every commit
+```
+
+#### Running Tests
+
+```bash
+# Run all tests (unit + integration + doc tests)
+cargo test
+
+# Run with output for debugging
+cargo test -- --nocapture
+
+# Run specific test
+cargo test test_roll_simple_dice
+```
+
+#### Code Quality Checks
+
+```bash
+# Run all quality checks manually
+./scripts/full-checks.sh
+
+# Individual checks
+cargo test          # All tests
+cargo clippy        # Linting (zero warnings enforced)
+cargo fmt           # Code formatting
+cargo check         # Compilation check
+```
+
+#### Making Changes
+
+1. **Write code** following Rust idioms (see steering docs)
+2. **Add tests** for new functionality
+3. **Run checks**: `./scripts/full-checks.sh`
+4. **Commit**: Pre-commit hook runs automatically
+
+```bash
+# The pre-commit hook will:
+# ✅ Run all tests
+# ✅ Check clippy (zero warnings)
+# ✅ Auto-format code if needed
+# ✅ Verify compilation
+```
+
+### Architecture
+
+#### Core Components
+
+- **`roll()`**: Main public API function
+- **Parser functions**: Convert dice notation to operations
+- **Helper functions**: Execute specific dice mechanics
+- **Error handling**: Comprehensive error types
+
+#### Key Design Decisions
+
+- **`usize` for dice counts**: Semantically correct, eliminates casting
+- **Helper function extraction**: Reduces complexity, improves maintainability
+- **Comprehensive validation**: Reject invalid input at parse time
+- **Zero-copy where possible**: Efficient string handling
+
+### Quality Standards
+
+#### Code Quality
+
+- **Zero clippy warnings** (enforced by pre-commit)
+- **100% test coverage** for public APIs
+- **Idiomatic Rust** following steering guidelines
+- **Comprehensive documentation** with examples
+
+#### Testing Strategy
+
+- **Unit tests**: Test individual functions in isolation
+- **Integration tests**: Test public API behavior
+- **Doc tests**: Ensure examples in documentation work
+- **Property-based testing**: Validate dice roll ranges
+
+#### Git Workflow
+
+- **Conventional commits**: `type(scope): description`
+- **Pre-commit validation**: Automatic quality checks
+- **Clean history**: Meaningful commit messages
+- **Steering compliance**: AI tooling follows established rules
+
+### Common Tasks
+
+#### Adding New Dice Syntax
+
+1. **Add parser function** in `lib.rs`
+2. **Add helper function** for dice mechanics
+3. **Update main parser** to recognize new syntax
+4. **Add comprehensive tests**
+5. **Update README** with syntax examples
+
+#### Debugging Issues
+
+```bash
+# Run tests with output
+cargo test -- --nocapture
+
+# Check specific functionality
+cargo run -- "4d6K3"
+
+# Lint for potential issues
+cargo clippy -- -D warnings
+```
+
+#### Performance Optimization
+
+```bash
+# Run benchmarks (if added)
+cargo bench
+
+# Profile with flamegraph
+cargo install flamegraph
+cargo flamegraph --bin rkdice -- "1000d6"
+```
+
+### Scripts Reference
+
+#### `scripts/full-checks.sh`
+
+Comprehensive quality assurance script that runs:
+- All tests (unit, integration, doc)
+- Clippy linting with zero warnings
+- Code formatting checks (auto-fixes)
+- Compilation verification
+
+Used by pre-commit hook and available for manual execution.
+
+#### `scripts/enable-full-precommit.sh`
+
+Sets up the pre-commit hook to use `full-checks.sh`. The hook is automatically active in the repository.
+
+### Troubleshooting
+
+#### Pre-commit Hook Issues
+
+```bash
+# If pre-commit hook isn't working
+chmod +x .git/hooks/pre-commit
+
+# Test pre-commit hook manually
+.git/hooks/pre-commit
+
+# Re-enable if needed
+./scripts/enable-full-precommit.sh
+```
+
+#### Build Issues
+
+```bash
+# Clean build artifacts
+cargo clean
+
+# Update dependencies
+cargo update
+
+# Check for outdated dependencies
+cargo install cargo-outdated
+cargo outdated
+```
+
+#### Test Failures
+
+```bash
+# Run failing test in isolation
+cargo test test_name -- --exact --nocapture
+
+# Run tests with backtrace
+RUST_BACKTRACE=1 cargo test
+```
+
+### Contributing
+
+1. **Follow steering guidelines** in `.amazonq/rules/steering/`
+2. **Write tests** for all new functionality
+3. **Ensure zero clippy warnings**
+4. **Use conventional commit messages**
+5. **Update documentation** as needed
+
+The pre-commit hook enforces all quality standards automatically.
+
 ## AI Tooling
 
 Almost all of this code base was developed by AI Tooling.
