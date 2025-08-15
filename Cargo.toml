@@ -22,6 +22,10 @@ anyhow = "1.0"
 thiserror = "2.0"
 # Random number generation
 rand = "0.9"
+# Readline functionality with command history
+rustyline = "14.0"
+# Directory utilities for finding home directory
+dirs = "5.0"
 
 [lib]
 path = "src/lib.rs"

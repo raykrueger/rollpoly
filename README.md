@@ -4,6 +4,8 @@ A comprehensive Rust 2024 application for rolling polyhedral dice in the termina
 
 ## CLI Usage
 
+Simple usage of comamnd line arguments to roll dice.
+
 ```bash
 # Roll dice directly
 rollpoly 2d6
@@ -21,6 +23,19 @@ rollpoly stats 2d6 -n 10000 -v
 # Show examples and help
 rollpoly examples
 rollpoly --help
+```
+
+Interactive shell usage for continuous interaction.
+
+```bash
+# Start interactive shell
+rollpoly shell
+# Roll dice in the shell
+rollpoly> 2d6
+rollpoly> 3d10 + 5
+rollpoly> 4d20K3
+# Exit the shell
+rollpoly> exit
 ```
 
 ## Syntax

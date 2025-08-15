@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#![allow(clippy::multiple_crate_versions)]
+
 //! `Rollpoly` - A comprehensive dice rolling library for tabletop gaming
 //!
 //! This library provides functionality to parse and evaluate dice notation

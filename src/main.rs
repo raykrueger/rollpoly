@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#![allow(clippy::multiple_crate_versions)]
+
 use anyhow::{Context, Result};
 use clap::{Parser, Subcommand};
 
@@ -60,6 +62,8 @@ enum Commands {
         #[arg(short, long)]
         verbose: bool,
     },
+    /// Start interactive shell for continuous dice rolling
+    Shell,
 }
 
 fn main() -> Result<()> {
@@ -80,6 +84,9 @@ fn main() -> Result<()> {
         }) => {
             run_statistics(&notation, rolls, verbose)
                 .with_context(|| format!("Failed to run statistics for notation '{notation}'"))?;
+        }
+        Some(Commands::Shell) => {
+            run_interactive_shell();
         }
         None => {
             // Handle direct dice notation or show help
@@ -268,4 +275,268 @@ fn show_interactive_mode() {
     println!("  rollpoly 2d6");
     println!("  rollpoly '3d6 + 5'");
     println!("  rollpoly roll 4d10 -n 5");
+}
+
+fn run_interactive_shell() {
+    use rustyline::error::ReadlineError;
+    use rustyline::{DefaultEditor, Result as RustylineResult};
+
+    println!("Rollpoly Interactive Shell");
+    println!("==========================");
+    println!("Enter dice notation to roll, or type 'help' for commands.");
+    println!("Type 'exit' or 'quit' to leave the shell.");
+    println!("Use up/down arrows to navigate command history.");
+    println!();
+
+    // Create readline editor with history
+    let rl: RustylineResult<DefaultEditor> = DefaultEditor::new();
+    let mut editor = match rl {
+        Ok(editor) => editor,
+        Err(e) => {
+            println!("❌ Failed to initialize readline: {e}");
+            println!("💡 Falling back to basic input mode...");
+            run_basic_shell();
+            return;
+        }
+    };
+
+    // Try to load history from file
+    let history_file = dirs::home_dir().map(|mut path| {
+        path.push(".rollpoly_history");
+        path
+    });
+
+    if let Some(ref history_path) = history_file {
+        let _ = editor.load_history(history_path);
+    }
+
+    loop {
+        // Read input with readline support
+        let readline = editor.readline("rollpoly> ");
+        match readline {
+            Ok(line) => {
+                let input = line.trim();
+
+                // Handle empty input
+                if input.is_empty() {
+                    continue;
+                }
+
+                // Add to history (rustyline handles duplicates automatically)
+                let _ = editor.add_history_entry(input);
+
+                // Handle shell commands
+                match input.to_lowercase().as_str() {
+                    "exit" | "quit" | "q" => {
+                        println!("Thanks for rolling! Goodbye!");
+                        break;
+                    }
+                    "help" | "h" => {
+                        show_shell_help();
+                        continue;
+                    }
+                    "examples" => {
+                        show_examples();
+                        continue;
+                    }
+                    "clear" | "cls" => {
+                        // Clear screen (works on most terminals)
+                        print!("\x1B[2J\x1B[1;1H");
+                        continue;
+                    }
+                    "history" => {
+                        show_command_history(&editor);
+                        continue;
+                    }
+                    _ => {}
+                }
+
+                // Try to parse and roll dice
+                match rollpoly::roll(input) {
+                    Ok(results) => {
+                        let sum = results.iter().sum::<i32>();
+                        let response = generate_roll_response(sum, &results);
+                        println!("{response}");
+                    }
+                    Err(e) => {
+                        println!("❌ Error: {e}");
+                        println!("Type 'help' for available commands or 'examples' for dice notation examples.");
+                    }
+                }
+            }
+            Err(ReadlineError::Interrupted) => {
+                // Ctrl+C
+                println!("Thanks for rolling! Goodbye!");
+                break;
+            }
+            Err(ReadlineError::Eof) => {
+                // Ctrl+D
+                println!();
+                println!("Goodbye!");
+                break;
+            }
+            Err(err) => {
+                println!("❌ Error reading input: {err}");
+                break;
+            }
+        }
+    }
+
+    // Save history to file
+    if let Some(ref history_path) = history_file {
+        let _ = editor.save_history(history_path);
+    }
+}
+
+// Fallback function for basic shell without readline
+fn run_basic_shell() {
+    use std::io::{self, Write};
+
+    loop {
+        // Print prompt
+        print!("rollpoly> ");
+        io::stdout().flush().unwrap();
+
+        // Read input
+        let mut input = String::new();
+        match io::stdin().read_line(&mut input) {
+            Ok(0) => {
+                // EOF (Ctrl+D)
+                println!();
+                println!("Goodbye!");
+                break;
+            }
+            Ok(_) => {
+                let input = input.trim();
+
+                // Handle empty input
+                if input.is_empty() {
+                    continue;
+                }
+
+                // Handle shell commands
+                match input.to_lowercase().as_str() {
+                    "exit" | "quit" | "q" => {
+                        println!("Thanks for rolling! Goodbye!");
+                        break;
+                    }
+                    "help" | "h" => {
+                        show_shell_help();
+                        continue;
+                    }
+                    "examples" => {
+                        show_examples();
+                        continue;
+                    }
+                    "clear" | "cls" => {
+                        // Clear screen (works on most terminals)
+                        print!("\x1B[2J\x1B[1;1H");
+                        io::stdout().flush().unwrap();
+                        println!("Screen cleared!");
+                        continue;
+                    }
+                    _ => {}
+                }
+
+                // Try to parse and roll dice
+                match rollpoly::roll(input) {
+                    Ok(results) => {
+                        let sum = results.iter().sum::<i32>();
+                        let response = generate_roll_response(sum, &results);
+                        println!("{response}");
+                    }
+                    Err(e) => {
+                        println!("❌ Error: {e}");
+                        println!("Type 'help' for available commands or 'examples' for dice notation examples.");
+                    }
+                }
+            }
+            Err(e) => {
+                println!("Error reading input: {e}");
+                break;
+            }
+        }
+    }
+}
+
+fn show_command_history(editor: &rustyline::DefaultEditor) {
+    use rustyline::history::History;
+
+    println!("Command History:");
+    println!("================");
+
+    let history = editor.history();
+    if history.is_empty() {
+        println!("No commands in history yet.");
+        return;
+    }
+
+    // Show last 10 commands
+    let start = if history.len() > 10 {
+        history.len() - 10
+    } else {
+        0
+    };
+
+    for (i, entry) in history.iter().enumerate().skip(start) {
+        println!("  {}: {}", i + 1, entry);
+    }
+
+    if history.len() > 10 {
+        println!("  ... and {} more commands", history.len() - 10);
+    }
+
+    println!();
+    println!("Use Up/Down arrows to navigate history");
+}
+
+fn generate_roll_response(sum: i32, results: &[i32]) -> String {
+    // Format the dice results
+    let dice_display = format_dice_results(results);
+
+    // Consistent format: "You rolled a N!" followed by dice array
+    format!("🎲 You rolled a {sum}! {dice_display}")
+}
+
+fn format_dice_results(results: &[i32]) -> String {
+    if results.len() == 1 {
+        format!("{}", results[0])
+    } else if results.len() <= 6 {
+        // Show individual dice for small rolls - clean and readable
+        format!("{results:?}")
+    } else {
+        // For large rolls, show summary
+        let min = results.iter().min().unwrap();
+        let max = results.iter().max().unwrap();
+        format!("{} dice (range: {min}-{max})", results.len())
+    }
+}
+
+fn show_shell_help() {
+    println!("Interactive Shell Commands");
+    println!("==========================");
+    println!();
+    println!("Dice Rolling:");
+    println!("  <dice_notation>   Roll dice using any supported notation");
+    println!("  2d6               Roll two 6-sided dice");
+    println!("  3d6 + 5           Roll 3d6 and add 5");
+    println!("  4d10K3            Roll 4d10 and keep highest 3");
+    println!();
+    println!("Shell Commands:");
+    println!("  help, h           Show this help message");
+    println!("  examples          Show dice notation examples");
+    println!("  history           Show command history");
+    println!("  clear, cls        Clear the screen");
+    println!("  exit, quit, q     Exit the shell");
+    println!();
+    println!("Navigation:");
+    println!("  Up/Down arrows    Navigate command history");
+    println!("  Ctrl+C            Exit the shell");
+    println!("  Ctrl+D            Exit the shell");
+    println!();
+    println!("Tips:");
+    println!("  - Use quotes around complex expressions if needed");
+    println!("  - Command history is saved between sessions");
+    println!("  - All dice notation from the main CLI is supported");
+    println!("  - Enjoy the randomized response formats!");
 }
