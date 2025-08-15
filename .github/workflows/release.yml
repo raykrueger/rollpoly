@@ -16,6 +16,10 @@ on:
           - minor
           - major
 
+permissions:
+  contents: write
+  actions: read
+
 env:
   CARGO_TERM_COLOR: always
 
@@ -58,8 +62,8 @@ jobs:
 
       - name: Commit version bump
         run: |
-          git config --local user.email "action@github.com"
-          git config --local user.name "GitHub Action"
+          git config --local user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git config --local user.name "github-actions[bot]"
           git add Cargo.toml Cargo.lock
           git commit -m "chore: bump version to ${{ steps.version.outputs.new_version }}"
           git push
