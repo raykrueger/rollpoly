@@ -2,6 +2,27 @@
 
 A comprehensive Rust 2024 application for rolling polyhedral dice in the terminal. Also supports being imported as a library with advanced dice mechanics for tabletop gaming.
 
+## CLI Usage
+
+```bash
+# Roll dice directly
+rollpoly 2d6
+rollpoly '3d6 + 5'
+rollpoly 4d10K3
+
+# Roll multiple times
+rollpoly '2d20' -n 5
+rollpoly roll '4d6K3' -n 6
+
+# Statistical analysis
+rollpoly stats 3d6 -n 1000
+rollpoly stats 2d6 -n 10000 -v
+
+# Show examples and help
+rollpoly examples
+rollpoly --help
+```
+
 ## Syntax
 
 ### Basic Syntax
