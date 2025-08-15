@@ -114,36 +114,21 @@ once, or uppercase 'R' to keep rerolling until the condition is no longer met.
 - **Git** with hooks enabled
 - **Cargo** (comes with Rust)
 
-### Project Structure
-
-```
-rollpoly/
-├── src/
-│   ├── lib.rs              # Core dice rolling library
-│   └── main.rs             # CLI application
-├── tests/
-│   └── integration_test.rs # Integration tests
-├── scripts/
-│   ├── full-checks.sh      # Quality assurance script
-│   └── enable-full-precommit.sh # Pre-commit setup
-├── .amazonq/
-│   └── rules/steering/     # AI tooling guidelines
-├── .git/hooks/
-│   └── pre-commit          # Automated quality checks
-└── README.md
-```
-
 ### Development Workflow
 
 #### Initial Setup
 
 ```bash
 # Clone the repository
-git clone <repository-url>
+git clone https://github.com/raykrueger/rollpoly.git
 cd rollpoly
+```
 
-# The pre-commit hook is automatically active
-# It runs full quality checks on every commit
+#### Install pre-commit hooks
+
+```bash
+# Enable pre-commit hooks for automatic quality checks
+./scripts/install-pre-commit-hook.sh
 ```
 
 #### Running Tests
@@ -151,9 +136,6 @@ cd rollpoly
 ```bash
 # Run all tests (unit + integration + doc tests)
 cargo test
-
-# Run with output for debugging
-cargo test -- --nocapture
 
 # Run specific test
 cargo test test_roll_simple_dice
@@ -178,14 +160,6 @@ cargo check         # Compilation check
 2. **Add tests** for new functionality
 3. **Run checks**: `./scripts/full-checks.sh`
 4. **Commit**: Pre-commit hook runs automatically
-
-```bash
-# The pre-commit hook will:
-# ✅ Run all tests
-# ✅ Check clippy (zero warnings)
-# ✅ Auto-format code if needed
-# ✅ Verify compilation
-```
 
 ### Architecture
 
@@ -236,83 +210,6 @@ cargo check         # Compilation check
 4. **Add comprehensive tests**
 5. **Update README** with syntax examples
 
-#### Debugging Issues
-
-```bash
-# Run tests with output
-cargo test -- --nocapture
-
-# Check specific functionality
-cargo run -- "4d6K3"
-
-# Lint for potential issues
-cargo clippy -- -D warnings
-```
-
-#### Performance Optimization
-
-```bash
-# Profile with flamegraph
-cargo install flamegraph
-cargo flamegraph --bin rollpoly -- "1000d6"
-```
-
-### Scripts Reference
-
-#### `scripts/full-checks.sh`
-
-Comprehensive quality assurance script that runs:
-
-- All tests (unit, integration, doc)
-- Clippy linting with zero warnings
-- Code formatting checks (auto-fixes)
-- Compilation verification
-
-Used by pre-commit hook and available for manual execution.
-
-#### `scripts/enable-full-precommit.sh`
-
-Sets up the pre-commit hook to use `full-checks.sh`. The hook is automatically active in the repository.
-
-### Troubleshooting
-
-#### Pre-commit Hook Issues
-
-```bash
-# If pre-commit hook isn't working
-chmod +x .git/hooks/pre-commit
-
-# Test pre-commit hook manually
-.git/hooks/pre-commit
-
-# Re-enable if needed
-./scripts/enable-full-precommit.sh
-```
-
-#### Build Issues
-
-```bash
-# Clean build artifacts
-cargo clean
-
-# Update dependencies
-cargo update
-
-# Check for outdated dependencies
-cargo install cargo-outdated
-cargo outdated
-```
-
-#### Test Failures
-
-```bash
-# Run failing test in isolation
-cargo test test_name -- --exact --nocapture
-
-# Run tests with backtrace
-RUST_BACKTRACE=1 cargo test
-```
-
 ### Contributing
 
 1. **Follow steering guidelines** in `.amazonq/rules/steering/`
@@ -325,7 +222,7 @@ The pre-commit hook enforces all quality standards automatically.
 
 ## AI Tooling
 
-Almost all of this code base was developed by AI Tooling.
+Almost all of this code was written by the Amazon Q CLI.
 
 ### Steering
 
