@@ -1,0 +1,109 @@
+name: Setup Repository Labels
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/dependabot.yml'
+      - '.github/workflows/setup-labels.yml'
+  workflow_dispatch:
+
+permissions:
+  issues: write
+
+jobs:
+  setup-labels:
+    name: Create Required Labels
+    runs-on: ubuntu-latest
+    steps:
+      - name: Create or update labels
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const labels = [
+              {
+                name: 'dependencies',
+                color: '0366d6',
+                description: 'Pull requests that update a dependency file'
+              },
+              {
+                name: 'dependabot',
+                color: '025e73',
+                description: 'Pull requests created by Dependabot'
+              },
+              {
+                name: 'github-actions',
+                color: '2088ff',
+                description: 'Pull requests that update GitHub Actions'
+              },
+              {
+                name: 'auto-merge',
+                color: '1d76db',
+                description: 'Pull requests eligible for automatic merging'
+              },
+              {
+                name: 'security',
+                color: 'd73a49',
+                description: 'Security-related updates and fixes'
+              },
+              {
+                name: 'do-not-merge',
+                color: 'b60205',
+                description: 'Pull requests that should not be automatically merged'
+              }
+            ];
+
+            for (const label of labels) {
+              try {
+                // Try to get the existing label
+                await github.rest.issues.getLabel({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  name: label.name
+                });
+                
+                // If it exists, update it
+                await github.rest.issues.updateLabel({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  name: label.name,
+                  color: label.color,
+                  description: label.description
+                });
+                
+                console.log(`✅ Updated label: ${label.name}`);
+                
+              } catch (error) {
+                if (error.status === 404) {
+                  // Label doesn't exist, create it
+                  await github.rest.issues.createLabel({
+                    owner: context.repo.owner,
+                    repo: context.repo.repo,
+                    name: label.name,
+                    color: label.color,
+                    description: label.description
+                  });
+                  
+                  console.log(`🆕 Created label: ${label.name}`);
+                } else {
+                  console.error(`❌ Error with label ${label.name}:`, error.message);
+                }
+              }
+            }
+            
+            console.log('🎉 All labels are ready for Dependabot!');
+
+      - name: Summary
+        run: |
+          echo "## 🏷️ Repository Labels Setup Complete" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "The following labels are now available for Dependabot:" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "- 🔵 **dependencies** - Pull requests that update a dependency file" >> $GITHUB_STEP_SUMMARY
+          echo "- 🔷 **dependabot** - Pull requests created by Dependabot" >> $GITHUB_STEP_SUMMARY
+          echo "- 🔵 **github-actions** - Pull requests that update GitHub Actions" >> $GITHUB_STEP_SUMMARY
+          echo "- 🔵 **auto-merge** - Pull requests eligible for automatic merging" >> $GITHUB_STEP_SUMMARY
+          echo "- 🔴 **security** - Security-related updates and fixes" >> $GITHUB_STEP_SUMMARY
+          echo "- 🔴 **do-not-merge** - Pull requests that should not be automatically merged" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "✅ Dependabot can now create PRs with proper labels!"

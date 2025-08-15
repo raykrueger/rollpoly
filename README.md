@@ -176,7 +176,7 @@ cargo test && ./scripts/full-checks.sh
 
 **Automated monitoring:**
 - **Dependabot integration** for automated dependency updates and security patches
-- **Auto-merge workflow** automatically merges Dependabot PRs when all tests pass
+- **Native auto-merge** using Dependabot's built-in functionality when all tests pass
 - **Daily dependency checks** with grouped pull requests for patch/minor updates
 - **Weekly GitHub Actions updates** to keep workflows current
 
@@ -208,7 +208,7 @@ cargo test && ./scripts/full-checks.sh
 #### Dependency Management
 
 - **Dependabot integration** for automated dependency updates and security patches
-- **Auto-merge workflow** automatically merges Dependabot PRs when all tests pass
+- **Native auto-merge** using Dependabot's built-in functionality when all tests pass
 - **Daily dependency checks** with grouped pull requests for patch/minor updates
 - **Weekly GitHub Actions updates** to keep workflows current
 - **Manual checking** available via `./scripts/check-dependencies.sh`
