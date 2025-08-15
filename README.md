@@ -210,6 +210,42 @@ cargo check         # Compilation check
 4. **Add comprehensive tests**
 5. **Update README** with syntax examples
 
+### Release Process
+
+#### Automated Releases
+
+The project uses GitHub Actions for automated releases with multi-platform builds:
+
+**Platforms supported:**
+- **Linux**: AMD64, ARM64 (`.tar.gz`)
+- **Windows**: AMD64, ARM64 (`.zip`)
+
+**Two ways to create releases:**
+
+1. **Manual workflow trigger** (recommended):
+   ```bash
+   # Use the GitHub web interface:
+   # Actions → Release → Run workflow → Select version bump type
+   ```
+
+2. **Local script**:
+   ```bash
+   # Bump version and create tag locally
+   ./scripts/bump-version.sh patch   # or minor, major
+   ```
+
+#### Version Bumping
+
+- **patch**: Bug fixes (0.1.0 → 0.1.1)
+- **minor**: New features (0.1.0 → 0.2.0)  
+- **major**: Breaking changes (0.1.0 → 1.0.0)
+
+The workflow automatically:
+- Runs full test suite on multiple platforms
+- Builds optimized binaries for all targets
+- Creates GitHub release with changelog
+- Uploads release artifacts
+
 ### Contributing
 
 1. **Follow steering guidelines** in `.amazonq/rules/steering/`
