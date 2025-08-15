@@ -32,9 +32,9 @@ Interactive shell usage for continuous interaction.
 rollpoly shell
 # Roll dice in the shell
 rollpoly> 2d6
-🎲 You rolled a 8! [4, 4]
+🎲 You rolled: 8! [4, 4]
 rollpoly> 4d6K3
-🎲 You rolled a 15! [6, 5, 4]
+🎲 You rolled: 15! [6, 5, 4]
 rollpoly> exit
 Thanks for rolling! Goodbye!
 ```
