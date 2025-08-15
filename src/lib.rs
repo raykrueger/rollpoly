@@ -139,12 +139,12 @@ fn roll_keep_drop_dice(
     op_count: usize,
 ) -> Vec<i32> {
     use rand::Rng;
-    let mut rng = rand::thread_rng();
+    let mut rng = rand::rng();
     let mut dice_results = Vec::new();
 
     // Roll all the dice
     for _ in 0..count {
-        dice_results.push(rng.gen_range(1..=sides));
+        dice_results.push(rng.random_range(1..=sides));
     }
 
     // Sort and apply the operation
@@ -173,10 +173,10 @@ fn roll_keep_drop_dice(
 /// Rolls simple dice (no special operations)
 fn roll_simple_dice(count: usize, sides: i32) -> Vec<i32> {
     use rand::Rng;
-    let mut rng = rand::thread_rng();
+    let mut rng = rand::rng();
     let mut dice_results = Vec::new();
     for _ in 0..count {
-        dice_results.push(rng.gen_range(1..=sides));
+        dice_results.push(rng.random_range(1..=sides));
     }
     dice_results
 }
@@ -191,12 +191,12 @@ fn roll_success_failure_dice(
     failure_target: i32,
 ) -> Vec<i32> {
     use rand::Rng;
-    let mut rng = rand::thread_rng();
+    let mut rng = rand::rng();
     let mut net_successes = 0;
 
     // Roll all the dice and count successes/failures
     for _ in 0..count {
-        let roll = rng.gen_range(1..=sides);
+        let roll = rng.random_range(1..=sides);
 
         let is_success = match success_comp {
             SuccessComparison::GreaterThan => roll > success_target,
@@ -228,12 +228,12 @@ fn roll_success_counting_dice(
     target: i32,
 ) -> Vec<i32> {
     use rand::Rng;
-    let mut rng = rand::thread_rng();
+    let mut rng = rand::rng();
     let mut success_count = 0;
 
     // Roll all the dice and count successes
     for _ in 0..count {
-        let roll = rng.gen_range(1..=sides);
+        let roll = rng.random_range(1..=sides);
 
         let is_success = match comparison {
             SuccessComparison::GreaterThan => roll > target,
@@ -257,7 +257,7 @@ fn roll_exploding_dice(
     explode_target: Option<i32>,
 ) -> Vec<i32> {
     use rand::Rng;
-    let mut rng = rand::thread_rng();
+    let mut rng = rand::rng();
     let mut all_results = Vec::new();
 
     // Roll each die with exploding
@@ -265,7 +265,7 @@ fn roll_exploding_dice(
         const MAX_EXPLOSIONS: usize = 100;
 
         let mut die_results = Vec::new();
-        let mut current_roll = rng.gen_range(1..=sides);
+        let mut current_roll = rng.random_range(1..=sides);
         die_results.push(current_roll);
 
         // Safety limit to prevent infinite explosions
@@ -289,7 +289,7 @@ fn roll_exploding_dice(
 
             if should_explode && explosion_count < MAX_EXPLOSIONS {
                 // Roll another die and add it
-                current_roll = rng.gen_range(1..=sides);
+                current_roll = rng.random_range(1..=sides);
                 die_results.push(current_roll);
                 explosion_count += 1;
             } else {
@@ -307,7 +307,7 @@ fn roll_exploding_dice(
 #[allow(clippy::too_many_lines)]
 fn parse_and_roll_dice(notation: &str) -> Option<Vec<i32>> {
     use rand::Rng;
-    let mut rng = rand::thread_rng();
+    let mut rng = rand::rng();
 
     // Handle different operators (arithmetic operations first)
     if notation.contains(" + ") {
@@ -357,7 +357,7 @@ fn parse_and_roll_dice(notation: &str) -> Option<Vec<i32>> {
 
         // Roll all the dice
         for _ in 0..count {
-            results.push(rng.gen_range(1..=sides));
+            results.push(rng.random_range(1..=sides));
         }
 
         // Sort and keep the specified dice
@@ -387,7 +387,7 @@ fn parse_and_roll_dice(notation: &str) -> Option<Vec<i32>> {
     if let Some((count, sides, reroll_type, reroll_condition)) = parse_reroll_dice(notation) {
         let mut results = Vec::new();
         for _ in 0..count {
-            let mut current_roll = rng.gen_range(1..=sides);
+            let mut current_roll = rng.random_range(1..=sides);
             if reroll_type == RerollType::Once {
                 let should_reroll = match reroll_condition {
                     RerollCondition::Value(val) => current_roll == val,
@@ -395,7 +395,7 @@ fn parse_and_roll_dice(notation: &str) -> Option<Vec<i32>> {
                     RerollCondition::LessThan(val) => current_roll < val,
                 };
                 if should_reroll {
-                    current_roll = rng.gen_range(1..=sides);
+                    current_roll = rng.random_range(1..=sides);
                 }
             } else {
                 // RerollType::Continuous
@@ -409,7 +409,7 @@ fn parse_and_roll_dice(notation: &str) -> Option<Vec<i32>> {
                         RerollCondition::LessThan(val) => current_roll < val,
                     };
                     if should_reroll && reroll_count < MAX_REROLLS {
-                        current_roll = rng.gen_range(1..=sides);
+                        current_roll = rng.random_range(1..=sides);
                         reroll_count += 1;
                     } else {
                         break;
@@ -425,7 +425,7 @@ fn parse_and_roll_dice(notation: &str) -> Option<Vec<i32>> {
     if let Some((count, sides)) = parse_simple_dice(notation) {
         let mut results = Vec::new();
         for _ in 0..count {
-            results.push(rng.gen_range(1..=sides));
+            results.push(rng.random_range(1..=sides));
         }
         return Some(results);
     }
