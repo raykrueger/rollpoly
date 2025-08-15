@@ -99,6 +99,15 @@ jobs:
             target: aarch64-pc-windows-msvc
             artifact_name: rollpoly.exe
             asset_name: rollpoly-windows-arm64.exe
+          # macOS builds
+          - os: macos-latest
+            target: x86_64-apple-darwin
+            artifact_name: rollpoly
+            asset_name: rollpoly-macos-amd64
+          - os: macos-latest
+            target: aarch64-apple-darwin
+            artifact_name: rollpoly
+            asset_name: rollpoly-macos-arm64
 
     steps:
       - name: Checkout code
@@ -140,19 +149,21 @@ jobs:
             ${{ runner.os }}-${{ matrix.target }}-cargo-
 
       - name: Run tests
-        if: matrix.target == 'x86_64-unknown-linux-gnu' || matrix.target == 'x86_64-pc-windows-msvc'
+        if: matrix.target == 'x86_64-unknown-linux-gnu' || matrix.target == 'x86_64-pc-windows-msvc' || matrix.target == 'x86_64-apple-darwin'
         run: cargo test --target ${{ matrix.target }}
 
       - name: Build release
         run: cargo build --release --target ${{ matrix.target }}
 
-      - name: Strip binary (Linux)
-        if: matrix.os == 'ubuntu-latest'
+      - name: Strip binary (Linux/macOS)
+        if: matrix.os == 'ubuntu-latest' || matrix.os == 'macos-latest'
         run: |
           if [ "${{ matrix.target }}" = "x86_64-unknown-linux-gnu" ]; then
             strip target/${{ matrix.target }}/release/${{ matrix.artifact_name }}
           elif [ "${{ matrix.target }}" = "aarch64-unknown-linux-gnu" ]; then
             aarch64-linux-gnu-strip target/${{ matrix.target }}/release/${{ matrix.artifact_name }}
+          elif [ "${{ matrix.target }}" = "x86_64-apple-darwin" ] || [ "${{ matrix.target }}" = "aarch64-apple-darwin" ]; then
+            strip target/${{ matrix.target }}/release/${{ matrix.artifact_name }}
           fi
 
       - name: Upload artifact
@@ -195,6 +206,16 @@ jobs:
           
           # Create tar.gz for Linux binaries
           for dir in rollpoly-linux-*; do
+            if [ -d "$dir" ]; then
+              cd "$dir"
+              chmod +x rollpoly
+              tar -czf "../../release/${dir}.tar.gz" rollpoly
+              cd ..
+            fi
+          done
+          
+          # Create tar.gz for macOS binaries
+          for dir in rollpoly-macos-*; do
             if [ -d "$dir" ]; then
               cd "$dir"
               chmod +x rollpoly
@@ -252,17 +273,37 @@ jobs:
             - **AMD64**: `rollpoly-linux-amd64.tar.gz`
             - **ARM64**: `rollpoly-linux-arm64.tar.gz`
             
+            ### macOS
+            - **Intel (AMD64)**: `rollpoly-macos-amd64.tar.gz`
+            - **Apple Silicon (ARM64)**: `rollpoly-macos-arm64.tar.gz`
+            
             ### Windows
             - **AMD64**: `rollpoly-windows-amd64.exe.zip`
             - **ARM64**: `rollpoly-windows-arm64.exe.zip`
             
             ## Installation
             
-            ### Linux/macOS
+            ### Linux
             ```bash
-            # Download and extract
+            # Download and extract (AMD64 example)
             wget https://github.com/raykrueger/rollpoly/releases/download/${{ steps.tag.outputs.tag_name }}/rollpoly-linux-amd64.tar.gz
             tar -xzf rollpoly-linux-amd64.tar.gz
+            chmod +x rollpoly
+            sudo mv rollpoly /usr/local/bin/
+            ```
+            
+            ### macOS
+            ```bash
+            # Download and extract (choose based on your Mac)
+            # For Intel Macs:
+            wget https://github.com/raykrueger/rollpoly/releases/download/${{ steps.tag.outputs.tag_name }}/rollpoly-macos-amd64.tar.gz
+            tar -xzf rollpoly-macos-amd64.tar.gz
+            
+            # For Apple Silicon Macs:
+            wget https://github.com/raykrueger/rollpoly/releases/download/${{ steps.tag.outputs.tag_name }}/rollpoly-macos-arm64.tar.gz
+            tar -xzf rollpoly-macos-arm64.tar.gz
+            
+            # Install (both):
             chmod +x rollpoly
             sudo mv rollpoly /usr/local/bin/
             ```

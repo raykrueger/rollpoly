@@ -218,6 +218,7 @@ The project uses GitHub Actions for automated releases with multi-platform build
 
 **Platforms supported:**
 - **Linux**: AMD64, ARM64 (`.tar.gz`)
+- **macOS**: Intel (AMD64), Apple Silicon (ARM64) (`.tar.gz`)
 - **Windows**: AMD64, ARM64 (`.zip`)
 
 **Two ways to create releases:**
