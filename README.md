@@ -161,6 +161,25 @@ cargo check         # Compilation check
 3. **Run checks**: `./scripts/full-checks.sh`
 4. **Commit**: Pre-commit hook runs automatically
 
+#### Dependency Management
+
+```bash
+# Check for outdated dependencies and security issues
+./scripts/check-dependencies.sh
+
+# Update dependencies (after reviewing)
+cargo update
+
+# Verify everything still works
+cargo test && ./scripts/full-checks.sh
+```
+
+**Automated monitoring:**
+- **Dependabot integration** for automated dependency updates and security patches
+- **Auto-merge workflow** automatically merges Dependabot PRs when all tests pass
+- **Daily dependency checks** with grouped pull requests for patch/minor updates
+- **Weekly GitHub Actions updates** to keep workflows current
+
 ### Architecture
 
 #### Core Components
@@ -185,6 +204,14 @@ cargo check         # Compilation check
 - **100% test coverage** for public APIs
 - **Idiomatic Rust** following steering guidelines
 - **Comprehensive documentation** with examples
+
+#### Dependency Management
+
+- **Dependabot integration** for automated dependency updates and security patches
+- **Auto-merge workflow** automatically merges Dependabot PRs when all tests pass
+- **Daily dependency checks** with grouped pull requests for patch/minor updates
+- **Weekly GitHub Actions updates** to keep workflows current
+- **Manual checking** available via `./scripts/check-dependencies.sh`
 
 #### Testing Strategy
 
