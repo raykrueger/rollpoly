@@ -494,8 +494,16 @@ fn generate_roll_response(sum: i32, results: &[i32]) -> String {
     // Format the dice results
     let dice_display = format_dice_results(results);
 
-    // Consistent format: "You rolled a N!" followed by dice array
-    format!("🎲 You rolled a {sum}! {dice_display}")
+    // Use "an" for numbers that start with vowel sounds when spoken
+    // 8 = "eight", 11 = "eleven", 18 = "eighteen", etc.
+    let article = if matches!(sum, 8 | 11 | 18 | 80..=89) {
+        "an"
+    } else {
+        "a"
+    };
+
+    // Consistent format: "You rolled a/an N!" followed by dice array
+    format!("🎲 You rolled {article} {sum}! {dice_display}")
 }
 
 fn format_dice_results(results: &[i32]) -> String {
