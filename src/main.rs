@@ -267,6 +267,7 @@ fn show_interactive_mode() {
     println!("Usage:");
     println!("  rollpoly <DICE_NOTATION>     # Roll dice directly");
     println!("  rollpoly roll <NOTATION>     # Roll dice using subcommand");
+    println!("  rollpoly shell               # Start interactive shell");
     println!("  rollpoly examples            # Show notation examples");
     println!("  rollpoly stats <NOTATION>    # Run statistical analysis");
     println!("  rollpoly --help              # Show detailed help");
@@ -274,6 +275,7 @@ fn show_interactive_mode() {
     println!("Examples:");
     println!("  rollpoly 2d6");
     println!("  rollpoly '3d6 + 5'");
+    println!("  rollpoly shell               # Interactive mode with history");
     println!("  rollpoly roll 4d10 -n 5");
 }
 
