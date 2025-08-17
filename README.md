@@ -39,6 +39,254 @@ rollpoly> exit
 Thanks for rolling! Goodbye!
 ```
 
+## Library API
+
+Rollpoly can be used as a Rust library in your own projects for dice rolling functionality.
+
+### Installation
+
+Add rollpoly to your `Cargo.toml`:
+
+```toml
+[dependencies]
+rollpoly = "0.2"
+```
+
+### Basic Usage
+
+The primary function is `roll()` which takes a dice notation string and returns a vector of results:
+
+```rust
+use rollpoly::roll;
+
+fn main() -> Result<(), Box<dyn std::error::Error>> {
+    // Basic dice rolling
+    let results = roll("2d6")?;
+    println!("Rolled 2d6: {:?}", results);
+    // Example output: [3, 5]
+    
+    // With arithmetic
+    let results = roll("4d6 + 10")?;
+    println!("Rolled 4d6+10: {:?}", results);
+    // Example output: [2, 4, 6, 1, 10] (dice results + modifier)
+    
+    // Advanced mechanics
+    let results = roll("4d6K3")?;  // Keep highest 3 of 4d6
+    println!("Rolled 4d6K3: {:?}", results);
+    // Example output: [6, 5, 4] (lowest die dropped)
+    
+    Ok(())
+}
+```
+
+### Error Handling
+
+The library uses comprehensive error types for robust error handling:
+
+```rust
+use rollpoly::{roll, DiceError};
+
+fn safe_roll(notation: &str) -> Result<Vec<i32>, DiceError> {
+    match roll(notation) {
+        Ok(results) => {
+            println!("Successfully rolled {}: {:?}", notation, results);
+            Ok(results)
+        }
+        Err(DiceError::EmptyInput) => {
+            eprintln!("Error: No dice notation provided");
+            Err(DiceError::EmptyInput)
+        }
+        Err(DiceError::InvalidNotation { input, reason }) => {
+            eprintln!("Error: Invalid notation '{}' - {}", input, reason);
+            Err(DiceError::InvalidNotation { input, reason })
+        }
+        Err(DiceError::InvalidDieSize { size }) => {
+            eprintln!("Error: Invalid die size '{}'", size);
+            Err(DiceError::InvalidDieSize { size })
+        }
+        Err(e) => {
+            eprintln!("Error: {}", e);
+            Err(e)
+        }
+    }
+}
+```
+
+### Integration Examples
+
+#### Game Character Creation
+
+```rust
+use rollpoly::roll;
+
+struct Character {
+    strength: i32,
+    dexterity: i32,
+    constitution: i32,
+    intelligence: i32,
+    wisdom: i32,
+    charisma: i32,
+}
+
+impl Character {
+    fn new() -> Result<Self, Box<dyn std::error::Error>> {
+        Ok(Character {
+            strength: roll("4d6K3")?.iter().sum(),
+            dexterity: roll("4d6K3")?.iter().sum(),
+            constitution: roll("4d6K3")?.iter().sum(),
+            intelligence: roll("4d6K3")?.iter().sum(),
+            wisdom: roll("4d6K3")?.iter().sum(),
+            charisma: roll("4d6K3")?.iter().sum(),
+        })
+    }
+}
+```
+
+#### Damage Calculator
+
+```rust
+use rollpoly::roll;
+
+fn calculate_damage(weapon: &str, critical: bool) -> Result<i32, Box<dyn std::error::Error>> {
+    let base_damage = if critical {
+        // Double dice on critical hit
+        match weapon {
+            "longsword" => roll("2d8 + 3")?,  // Doubled 1d8
+            "greataxe" => roll("2d12 + 5")?,  // Doubled 1d12
+            "dagger" => roll("2d4 + 2")?,     // Doubled 1d4
+            _ => roll("2d6")?,
+        }
+    } else {
+        match weapon {
+            "longsword" => roll("1d8 + 3")?,
+            "greataxe" => roll("1d12 + 5")?,
+            "dagger" => roll("1d4 + 2")?,
+            _ => roll("1d6")?,
+        }
+    };
+    
+    Ok(base_damage.iter().sum())
+}
+```
+
+#### Statistical Analysis
+
+```rust
+use rollpoly::roll;
+use std::collections::HashMap;
+
+fn analyze_dice_distribution(notation: &str, iterations: usize) -> Result<(), Box<dyn std::error::Error>> {
+    let mut results = HashMap::new();
+    
+    for _ in 0..iterations {
+        let roll_result: i32 = roll(notation)?.iter().sum();
+        *results.entry(roll_result).or_insert(0) += 1;
+    }
+    
+    println!("Distribution for {} over {} rolls:", notation, iterations);
+    let mut sorted_results: Vec<_> = results.iter().collect();
+    sorted_results.sort_by_key(|&(value, _)| value);
+    
+    for (value, count) in sorted_results {
+        let percentage = (*count as f64 / iterations as f64) * 100.0;
+        println!("  {}: {} ({:.1}%)", value, count, percentage);
+    }
+    
+    Ok(())
+}
+
+// Usage
+fn main() -> Result<(), Box<dyn std::error::Error>> {
+    analyze_dice_distribution("3d6", 10000)?;
+    Ok(())
+}
+```
+
+#### Custom Game Mechanics
+
+```rust
+use rollpoly::roll;
+
+// Daggerheart-style Hope/Fear mechanics
+fn hope_fear_roll() -> Result<(i32, bool, bool), Box<dyn std::error::Error>> {
+    let results = roll("2d12")?;
+    let total = results.iter().sum();
+    let hope = results.contains(&12);  // Natural 12 generates Hope
+    let fear = results.contains(&1);   // Natural 1 generates Fear
+    
+    Ok((total, hope, fear))
+}
+
+// Shadowrun-style success counting
+fn shadowrun_test(dice_pool: usize, threshold: i32) -> Result<(i32, i32), Box<dyn std::error::Error>> {
+    let notation = format!("{}d6", dice_pool);
+    let results = roll(&notation)?;
+    
+    let successes = results.iter().filter(|&&x| x >= threshold).count() as i32;
+    let glitches = results.iter().filter(|&&x| x == 1).count() as i32;
+    
+    Ok((successes, glitches))
+}
+```
+
+### API Reference
+
+#### Functions
+
+- **`roll(dice_notation: &str) -> Result<Vec<i32>, DiceError>`**
+  - Primary function for rolling dice
+  - Takes a dice notation string (e.g., "2d6", "4d10K3", "3d6 + 5")
+  - Returns a vector containing individual dice results and any modifiers
+  - For "4d6 + 5", returns `[die1, die2, die3, die4, modifier]`
+
+#### Error Types
+
+- **`DiceError::EmptyInput`** - Empty or whitespace-only input
+- **`DiceError::InvalidNotation { input, reason }`** - Malformed dice notation
+- **`DiceError::InvalidDieSize { size }`** - Invalid number of sides (must be positive)
+- **`DiceError::InvalidDiceCount { count }`** - Invalid number of dice (must be positive)
+- **`DiceError::InvalidModifier { modifier }`** - Invalid arithmetic modifier
+- **`DiceError::UnsupportedOperator { operator, input }`** - Unsupported mathematical operator
+
+#### Return Values
+
+The `roll()` function returns a `Vec<i32>` containing:
+- Individual dice roll results
+- Any arithmetic modifiers as separate elements
+- For advanced mechanics (Keep/Drop), only the kept dice are returned
+
+Examples:
+- `roll("2d6")` → `[3, 5]` (two dice results)
+- `roll("2d6 + 3")` → `[3, 5, 3]` (two dice + modifier)
+- `roll("4d6K3")` → `[6, 5, 4]` (highest 3 of 4 dice)
+- `roll("3d6>4")` → `[2]` (count of successes above 4)
+
+### Thread Safety
+
+The library is thread-safe and can be used in concurrent applications:
+
+```rust
+use rollpoly::roll;
+use std::thread;
+
+fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let handles: Vec<_> = (0..10)
+        .map(|i| {
+            thread::spawn(move || {
+                let results = roll("3d6").unwrap();
+                println!("Thread {}: {:?}", i, results);
+            })
+        })
+        .collect();
+    
+    for handle in handles {
+        handle.join().unwrap();
+    }
+    
+    Ok(())
+}
+```
+
 ## Syntax
 
 ### Basic Syntax
