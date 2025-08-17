@@ -12,6 +12,24 @@ documentation = "https://docs.rs/rollpoly"
 readme = "README.md"
 keywords = ["dice", "gaming", "cli", "terminal", "polyhedral"]
 categories = ["command-line-utilities", "games"]
+exclude = [
+    ".github/*",
+    ".amazonq/*",
+    "scripts/*",
+    "docs/*",
+    "target/*",
+    "*.log"
+]
+include = [
+    "src/**/*",
+    "tests/**/*",
+    "examples/**/*",
+    "Cargo.toml",
+    "Cargo.lock",
+    "README.md",
+    "LICENSE",
+    "CHANGELOG.md"
+]
 
 [dependencies]
 # CLI parsing with derive macros
