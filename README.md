@@ -4,7 +4,7 @@ A comprehensive Rust 2024 application for rolling polyhedral dice in the termina
 
 ## CLI Usage
 
-Simple usage of comamnd line arguments to roll dice.
+Simple usage of command line arguments to roll dice.
 
 ```bash
 # Roll dice directly
