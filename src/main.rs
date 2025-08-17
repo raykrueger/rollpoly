@@ -64,6 +64,9 @@ enum Commands {
     },
     /// Start interactive shell for continuous dice rolling
     Shell,
+    /// Roll Daggerheart Duality dice (2d12 with Hope/Fear mechanics)
+    #[command(name = "dh")]
+    Dh,
 }
 
 fn main() -> Result<()> {
@@ -87,6 +90,10 @@ fn main() -> Result<()> {
         }
         Some(Commands::Shell) => {
             run_interactive_shell();
+        }
+        Some(Commands::Dh) => {
+            roll_daggerheart_duality()
+                .with_context(|| "Failed to roll Daggerheart duality dice")?;
         }
         None => {
             // Handle direct dice notation or show help
@@ -125,6 +132,25 @@ fn roll_dice(notation: &str, repeat: usize) -> Result<()> {
     Ok(())
 }
 
+fn roll_daggerheart_duality() -> Result<()> {
+    let results = rollpoly::roll("2d12")
+        .with_context(|| "Failed to roll 2d12 for Daggerheart duality dice")?;
+
+    let hope_die = results[0]; // First die represents Hope
+    let fear_die = results[1]; // Second die represents Fear
+    let total = hope_die + fear_die;
+
+    let result_type = match hope_die.cmp(&fear_die) {
+        std::cmp::Ordering::Equal => format!("🎯 Rolled {total} CRITICAL!"),
+        std::cmp::Ordering::Greater => format!("✨ Rolled {total} with Hope"),
+        std::cmp::Ordering::Less => format!("😰 Rolled {total} with Fear"),
+    };
+
+    println!("{result_type} [Hope: {hope_die}, Fear: {fear_die}]");
+
+    Ok(())
+}
+
 fn show_examples() {
     println!("Rollpoly - Dice Notation Examples");
     println!("=================================");
@@ -146,6 +172,9 @@ fn show_examples() {
     println!("  rollpoly '2d12 - 1d6' # Daggerheart with Disadvantage");
     println!("  rollpoly '3d6 + 2d4'  # Multiple dice pools combined");
     println!("  rollpoly '4d6K3 + 1d4' # Keep highest 3 of 4d6, add 1d4");
+    println!();
+    println!("Game-specific commands:");
+    println!("  rollpoly dh             # Daggerheart Duality dice (2d12 Hope/Fear)");
     println!();
     println!("Keep highest (K) and keep lowest (k):");
     println!("  rollpoly 4d10K      # Roll 4d10 and keep only the highest");
@@ -267,6 +296,7 @@ fn show_interactive_mode() {
     println!("Usage:");
     println!("  rollpoly <DICE_NOTATION>     # Roll dice directly");
     println!("  rollpoly roll <NOTATION>     # Roll dice using subcommand");
+    println!("  rollpoly dh                  # Roll Daggerheart Duality dice (2d12)");
     println!("  rollpoly shell               # Start interactive shell");
     println!("  rollpoly examples            # Show notation examples");
     println!("  rollpoly stats <NOTATION>    # Run statistical analysis");
@@ -275,6 +305,7 @@ fn show_interactive_mode() {
     println!("Examples:");
     println!("  rollpoly 2d6");
     println!("  rollpoly '3d6 + 5'");
+    println!("  rollpoly dh                  # Hope/Fear mechanics with criticals");
     println!("  rollpoly shell               # Interactive mode with history");
     println!("  rollpoly roll 4d10 -n 5");
 }
@@ -348,6 +379,13 @@ fn run_interactive_shell() {
                     }
                     "history" => {
                         show_command_history(&editor);
+                        continue;
+                    }
+                    "dh" | "daggerheart" => {
+                        match roll_daggerheart_duality() {
+                            Ok(()) => {}
+                            Err(e) => println!("❌ Error rolling Daggerheart duality dice: {e}"),
+                        }
                         continue;
                     }
                     _ => {}
@@ -527,6 +565,7 @@ fn show_shell_help() {
     println!("Shell Commands:");
     println!("  help, h           Show this help message");
     println!("  examples          Show dice notation examples");
+    println!("  dh                Roll Daggerheart Duality dice (2d12)");
     println!("  history           Show command history");
     println!("  clear, cls        Clear the screen");
     println!("  exit, quit, q     Exit the shell");

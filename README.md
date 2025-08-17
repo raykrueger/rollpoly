@@ -20,6 +20,9 @@ rollpoly roll '4d6K3' -n 6
 rollpoly stats 3d6 -n 1000
 rollpoly stats 2d6 -n 10000 -v
 
+# Game-specific commands
+rollpoly dh                 # Daggerheart Duality dice (Hope/Fear)
+
 # Show examples and help
 rollpoly examples
 rollpoly --help
