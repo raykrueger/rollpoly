@@ -207,14 +207,22 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 ```rust
 use rollpoly::roll;
 
-// Daggerheart-style Hope/Fear mechanics
-fn hope_fear_roll() -> Result<(i32, bool, bool), Box<dyn std::error::Error>> {
+// Daggerheart Duality dice mechanics
+fn daggerheart_duality_roll() -> Result<(i32, String), Box<dyn std::error::Error>> {
     let results = roll("2d12")?;
-    let total = results.iter().sum();
-    let hope = results.contains(&12);  // Natural 12 generates Hope
-    let fear = results.contains(&1);   // Natural 1 generates Fear
+    let hope_die = results[0];    // First die represents Hope
+    let fear_die = results[1];    // Second die represents Fear
+    let total = hope_die + fear_die;
     
-    Ok((total, hope, fear))
+    let result_type = if hope_die == fear_die {
+        format!("Rolled {} CRITICAL!", total)
+    } else if hope_die > fear_die {
+        format!("Rolled {} with Hope", total)
+    } else {
+        format!("Rolled {} with Fear", total)
+    };
+    
+    Ok((total, result_type))
 }
 
 // Shadowrun-style success counting
