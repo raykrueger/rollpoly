@@ -49,13 +49,18 @@ TAG_NAME="v$NEW_VERSION"
 echo "New version: $NEW_VERSION"
 echo "Tag name: $TAG_NAME"
 
+# Update README.md dependency example
+echo "Updating README.md dependency example..."
+MAJOR_MINOR=$(echo "$NEW_VERSION" | cut -d. -f1-2)
+sed -i "s/rollpoly = \"[0-9]\+\.[0-9]\+\"/rollpoly = \"$MAJOR_MINOR\"/" README.md
+
 # Run tests to make sure everything still works
 echo "Running tests..."
 cargo test
 
 # Commit version bump
 echo "Committing version bump..."
-git add Cargo.toml Cargo.lock
+git add Cargo.toml Cargo.lock README.md
 git commit -m "chore: bump version to $NEW_VERSION"
 
 # Create and push tag
