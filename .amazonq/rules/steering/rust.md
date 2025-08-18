@@ -11,6 +11,20 @@ Concise guide for idiomatic Rust practices and conventions.
 - **Constants**: `SCREAMING_SNAKE_CASE` (`MAX_RETRY_ATTEMPTS`)
 - **Generics**: Single uppercase letters (`T`, `Input`, `Output`)
 
+## Public API Guidelines
+
+**Breaking vs Non-Breaking Changes:**
+- **Non-breaking**: Adding enum variants, struct fields, trait methods with defaults
+- **Breaking**: Changing function signatures, removing public items, changing return types
+- **Use semantic versioning**: Major.Minor.Patch (breaking.feature.bugfix)
+
+**API Design:**
+- **Minimize public surface**: Only expose what users need
+- **Use `#[non_exhaustive]`** on enums/structs that may grow
+- **Prefer `&str` over `String`** for parameters
+- **Return `Result<T, E>`** for fallible operations
+- **Use builder patterns** for complex configuration
+
 ## Project Structure
 
 ```
