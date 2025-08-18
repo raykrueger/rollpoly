@@ -23,6 +23,8 @@
 //!
 //! - **Basic dice rolling**: Roll any number of dice with any number of sides (e.g., `4d10`, `d20`)
 //! - **Arithmetic operations**: Add, subtract, multiply, and divide dice results (e.g., `3d6 + 5`)
+//! - **Advanced mechanics**: Keep/drop highest/lowest, exploding dice, rerolling, success counting
+//! - **Safety limits**: Maximum of 10 dice per roll to prevent excessive resource usage
 //! - **Error handling**: Comprehensive error reporting for invalid input
 //! - **Random number generation**: Uses cryptographically secure random number generation
 //!
@@ -54,6 +56,12 @@
 //! - `5d6 / 2`: Roll 5d6 and divide by 2
 //! - `4d8 // 3`: Roll 4d8 and floor divide by 3
 //!
+//! # Safety Limits
+//!
+//! To prevent excessive resource usage and potential abuse, the library enforces
+//! a maximum limit of 10 dice per roll. Attempts to roll more than 10 dice will
+//! result in a [`DiceError::TooManyDice`] error.
+//!
 //! # Error Handling
 //!
 //! All functions return `Result` types with descriptive error messages.
@@ -61,6 +69,21 @@
 //! of what went wrong.
 
 use thiserror::Error;
+
+/// Maximum number of dice that can be rolled in a single operation
+const MAX_DICE_COUNT: usize = 10;
+
+/// Validates that a dice count doesn't exceed the maximum allowed
+const fn validate_dice_count(count: usize) -> Result<(), DiceError> {
+    if count > MAX_DICE_COUNT {
+        Err(DiceError::TooManyDice {
+            count,
+            max: MAX_DICE_COUNT,
+        })
+    } else {
+        Ok(())
+    }
+}
 
 /// Error type for dice rolling operations
 #[derive(Error, Debug, Clone, PartialEq, Eq)]
@@ -82,6 +105,9 @@ pub enum DiceError {
 
     #[error("Unsupported operator '{operator}' in dice notation '{input}'")]
     UnsupportedOperator { operator: String, input: String },
+
+    #[error("Too many dice '{count}': maximum allowed is {max}")]
+    TooManyDice { count: usize, max: usize },
 }
 
 /// Rolls dice based on the provided dice notation string.
@@ -126,9 +152,14 @@ pub fn roll(dice_notation: &str) -> Result<Vec<i32>, DiceError> {
     }
 
     // Handle basic dice notation parsing
-    parse_and_roll_dice(notation).ok_or_else(|| DiceError::InvalidNotation {
-        input: dice_notation.to_string(),
-        reason: "Unable to parse dice notation".to_string(),
+    parse_and_roll_dice(notation).map_err(|e| match e {
+        // If it's already a DiceError, pass it through
+        e @ DiceError::TooManyDice { .. } => e,
+        // Otherwise, wrap as InvalidNotation
+        _ => DiceError::InvalidNotation {
+            input: dice_notation.to_string(),
+            reason: "Unable to parse dice notation".to_string(),
+        },
     })
 }
 
@@ -307,7 +338,7 @@ fn roll_exploding_dice(
 }
 
 #[allow(clippy::too_many_lines)]
-fn parse_and_roll_dice(notation: &str) -> Option<Vec<i32>> {
+fn parse_and_roll_dice(notation: &str) -> Result<Vec<i32>, DiceError> {
     use rand::Rng;
     let mut rng = rand::rng();
 
@@ -325,8 +356,8 @@ fn parse_and_roll_dice(notation: &str) -> Option<Vec<i32>> {
     }
 
     // Handle exploding dice syntax (e.g., "2d20!", "7d20!3", "d20!>10", "3d12!<2")
-    if let Some((count, sides, explode_comp, explode_target)) = parse_exploding_dice(notation) {
-        return Some(roll_exploding_dice(
+    if let Some((count, sides, explode_comp, explode_target)) = parse_exploding_dice(notation)? {
+        return Ok(roll_exploding_dice(
             count,
             sides,
             explode_comp,
@@ -334,59 +365,9 @@ fn parse_and_roll_dice(notation: &str) -> Option<Vec<i32>> {
         ));
     }
 
-    // Handle success counting syntax (e.g., "4d20>19", "10d12<3")
-    if let Some((count, sides, comparison, target)) = parse_success_dice(notation) {
-        return Some(roll_success_counting_dice(count, sides, comparison, target));
-    }
-
-    // Handle success/failure counting syntax (e.g., "10d10>6f<3", "4d20<5f>19")
-    if let Some((count, sides, success_comp, success_target, failure_comp, failure_target)) =
-        parse_success_failure_dice(notation)
-    {
-        return Some(roll_success_failure_dice(
-            count,
-            sides,
-            success_comp,
-            success_target,
-            failure_comp,
-            failure_target,
-        ));
-    }
-
-    // Handle keep highest/lowest syntax (e.g., "4d10K", "7d12K3", "3d6k", "100d6k99")
-    if let Some((count, sides, keep_type, keep_count)) = parse_keep_dice(notation) {
-        let mut results = Vec::new();
-
-        // Roll all the dice
-        for _ in 0..count {
-            results.push(rng.random_range(1..=sides));
-        }
-
-        // Sort and keep the specified dice
-        match keep_type {
-            DiceOperation::KeepHighest => {
-                results.sort_unstable_by(|a, b| b.cmp(a)); // Sort descending (highest first)
-                results.truncate(keep_count);
-            }
-            DiceOperation::KeepLowest => {
-                results.sort_unstable(); // Sort ascending (lowest first)
-                results.truncate(keep_count);
-            }
-            DiceOperation::DropHighest => {
-                results.sort_unstable(); // Sort ascending (lowest first)
-                results.truncate(count - keep_count); // Keep all but the highest
-            }
-            DiceOperation::DropLowest => {
-                results.sort_unstable_by(|a, b| b.cmp(a)); // Sort descending (highest first)
-                results.truncate(count - keep_count); // Keep all but the lowest
-            }
-        }
-
-        return Some(results);
-    }
-
     // Handle rerolling dice syntax (e.g., "4d6r1", "2d6R<3")
-    if let Some((count, sides, reroll_type, reroll_condition)) = parse_reroll_dice(notation) {
+    // This must come before success counting to avoid conflicts with < and >
+    if let Some((count, sides, reroll_type, reroll_condition)) = parse_reroll_dice(notation)? {
         let mut results = Vec::new();
         for _ in 0..count {
             let mut current_roll = rng.random_range(1..=sides);
@@ -420,19 +401,74 @@ fn parse_and_roll_dice(notation: &str) -> Option<Vec<i32>> {
             }
             results.push(current_roll);
         }
-        return Some(results);
+        return Ok(results);
+    }
+
+    // Handle success/failure counting syntax (e.g., "10d10>6f<3", "4d20<5f>19")
+    // This must come before simple success counting to avoid conflicts
+    if let Some((count, sides, success_comp, success_target, failure_comp, failure_target)) =
+        parse_success_failure_dice(notation)?
+    {
+        return Ok(roll_success_failure_dice(
+            count,
+            sides,
+            success_comp,
+            success_target,
+            failure_comp,
+            failure_target,
+        ));
+    }
+
+    // Handle success counting syntax (e.g., "4d20>19", "10d12<3")
+    if let Some((count, sides, comparison, target)) = parse_success_dice(notation)? {
+        return Ok(roll_success_counting_dice(count, sides, comparison, target));
+    }
+
+    // Handle keep highest/lowest syntax (e.g., "4d10K", "7d12K3", "3d6k", "100d6k99")
+    if let Some((count, sides, keep_type, keep_count)) = parse_keep_dice(notation)? {
+        let mut results = Vec::new();
+
+        // Roll all the dice
+        for _ in 0..count {
+            results.push(rng.random_range(1..=sides));
+        }
+
+        // Sort and keep the specified dice
+        match keep_type {
+            DiceOperation::KeepHighest => {
+                results.sort_unstable_by(|a, b| b.cmp(a)); // Sort descending (highest first)
+                results.truncate(keep_count);
+            }
+            DiceOperation::KeepLowest => {
+                results.sort_unstable(); // Sort ascending (lowest first)
+                results.truncate(keep_count);
+            }
+            DiceOperation::DropHighest => {
+                results.sort_unstable(); // Sort ascending (lowest first)
+                results.truncate(count - keep_count); // Keep all but the highest
+            }
+            DiceOperation::DropLowest => {
+                results.sort_unstable_by(|a, b| b.cmp(a)); // Sort descending (highest first)
+                results.truncate(count - keep_count); // Keep all but the lowest
+            }
+        }
+
+        return Ok(results);
     }
 
     // Handle simple dice notation (e.g., "4d10", "d6")
-    if let Some((count, sides)) = parse_simple_dice(notation) {
+    if let Some((count, sides)) = parse_simple_dice(notation)? {
         let mut results = Vec::new();
         for _ in 0..count {
             results.push(rng.random_range(1..=sides));
         }
-        return Some(results);
+        return Ok(results);
     }
 
-    None
+    Err(DiceError::InvalidNotation {
+        input: notation.to_string(),
+        reason: "Unable to parse dice notation".to_string(),
+    })
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -462,10 +498,21 @@ enum SuccessComparison {
     LessThan,
 }
 
+// Type aliases to reduce complexity
+type ExplodingDiceResult = (usize, i32, Option<SuccessComparison>, Option<i32>);
+type SuccessFailureDiceResult = (usize, i32, SuccessComparison, i32, SuccessComparison, i32);
+
 /// Parses success counting dice notation like "4d20>19", "10d12<3"
-fn parse_success_dice(notation: &str) -> Option<(usize, i32, SuccessComparison, i32)> {
+fn parse_success_dice(
+    notation: &str,
+) -> Result<Option<(usize, i32, SuccessComparison, i32)>, DiceError> {
     // Find 'd' first
-    let d_pos = notation.find('d')?;
+    let d_pos = notation.find('d');
+    if d_pos.is_none() {
+        return Ok(None);
+    }
+    let d_pos = d_pos.unwrap();
+
     let count_str = &notation[..d_pos];
     let rest = &notation[d_pos + 1..];
 
@@ -473,8 +520,21 @@ fn parse_success_dice(notation: &str) -> Option<(usize, i32, SuccessComparison, 
     let count = if count_str.is_empty() {
         1
     } else {
-        count_str.parse().ok()?
+        let parsed_count: i32 = count_str.parse().map_err(|_| DiceError::InvalidDiceCount {
+            count: count_str.to_string(),
+        })?;
+        if parsed_count <= 0 {
+            return Err(DiceError::InvalidDiceCount {
+                count: count_str.to_string(),
+            });
+        }
+        usize::try_from(parsed_count).map_err(|_| DiceError::InvalidDiceCount {
+            count: count_str.to_string(),
+        })?
     };
+
+    // Validate dice count doesn't exceed maximum
+    validate_dice_count(count)?;
 
     // Find > or <
     let (comparison, comp_pos) = if let Some(pos) = rest.find('>') {
@@ -482,26 +542,33 @@ fn parse_success_dice(notation: &str) -> Option<(usize, i32, SuccessComparison, 
     } else if let Some(pos) = rest.find('<') {
         (SuccessComparison::LessThan, pos)
     } else {
-        return None;
+        return Ok(None);
     };
 
     // Parse sides (before comparison character)
     let sides_str = &rest[..comp_pos];
-    let sides = sides_str.parse().ok()?;
+    let sides = sides_str.parse().map_err(|_| DiceError::InvalidDieSize {
+        size: sides_str.to_string(),
+    })?;
 
     // Parse target (after comparison character)
     let target_str = &rest[comp_pos + 1..];
-    let target = target_str.parse().ok()?;
+    let target = target_str.parse().map_err(|_| DiceError::InvalidModifier {
+        modifier: target_str.to_string(),
+    })?;
 
-    Some((count, sides, comparison, target))
+    Ok(Some((count, sides, comparison, target)))
 }
 
 /// Parses exploding dice notation like "2d20!", "7d20!3", "d20!>10", "3d12!<2"
-fn parse_exploding_dice(
-    notation: &str,
-) -> Option<(usize, i32, Option<SuccessComparison>, Option<i32>)> {
+fn parse_exploding_dice(notation: &str) -> Result<Option<ExplodingDiceResult>, DiceError> {
     // Find 'd' first
-    let d_pos = notation.find('d')?;
+    let d_pos = notation.find('d');
+    if d_pos.is_none() {
+        return Ok(None);
+    }
+    let d_pos = d_pos.unwrap();
+
     let count_str = &notation[..d_pos];
     let rest = &notation[d_pos + 1..];
 
@@ -509,57 +576,85 @@ fn parse_exploding_dice(
     let count = if count_str.is_empty() {
         1
     } else {
-        count_str.parse().ok()?
+        let parsed_count: i32 = count_str.parse().map_err(|_| DiceError::InvalidDiceCount {
+            count: count_str.to_string(),
+        })?;
+        if parsed_count <= 0 {
+            return Err(DiceError::InvalidDiceCount {
+                count: count_str.to_string(),
+            });
+        }
+        usize::try_from(parsed_count).map_err(|_| DiceError::InvalidDiceCount {
+            count: count_str.to_string(),
+        })?
     };
 
+    // Validate dice count doesn't exceed maximum
+    validate_dice_count(count)?;
+
     // Find '!' for exploding
-    let explode_pos = rest.find('!')?;
+    let explode_pos = rest.find('!');
+    if explode_pos.is_none() {
+        return Ok(None);
+    }
+    let explode_pos = explode_pos.unwrap();
 
     // Parse sides (before !)
     let sides_str = &rest[..explode_pos];
-    let sides = sides_str.parse().ok()?;
+    let sides = sides_str.parse().map_err(|_| DiceError::InvalidDieSize {
+        size: sides_str.to_string(),
+    })?;
 
     // Parse exploding condition (after !)
     let explode_str = &rest[explode_pos + 1..];
 
     if explode_str.is_empty() {
         // Simple exploding (e.g., "2d20!" - explode on max value)
-        Some((count, sides, None, None))
+        Ok(Some((count, sides, None, None)))
     } else if let Ok(target) = explode_str.parse::<i32>() {
         // Explode on specific number (e.g., "7d20!3" - explode on exactly 3)
         // We'll use a special case in the explosion logic to check for equality
-        Some((count, sides, None, Some(target)))
+        Ok(Some((count, sides, None, Some(target))))
     } else if let Some(pos) = explode_str.find('>') {
         // Explode on greater than (e.g., "d20!>10" - explode on 11+)
         let target_str = &explode_str[pos + 1..];
-        let target = target_str.parse().ok()?;
-        Some((
+        let target = target_str.parse().map_err(|_| DiceError::InvalidModifier {
+            modifier: target_str.to_string(),
+        })?;
+        Ok(Some((
             count,
             sides,
             Some(SuccessComparison::GreaterThan),
             Some(target),
-        ))
+        )))
     } else if let Some(pos) = explode_str.find('<') {
         // Explode on less than (e.g., "3d12!<2" - explode on 1)
         let target_str = &explode_str[pos + 1..];
-        let target = target_str.parse().ok()?;
-        Some((
+        let target = target_str.parse().map_err(|_| DiceError::InvalidModifier {
+            modifier: target_str.to_string(),
+        })?;
+        Ok(Some((
             count,
             sides,
             Some(SuccessComparison::LessThan),
             Some(target),
-        ))
+        )))
     } else {
-        None
+        Ok(None)
     }
 }
 
 /// Parses success/failure counting dice notation like "10d10>6f<3", "4d20<5f>19"
 fn parse_success_failure_dice(
     notation: &str,
-) -> Option<(usize, i32, SuccessComparison, i32, SuccessComparison, i32)> {
+) -> Result<Option<SuccessFailureDiceResult>, DiceError> {
     // Find 'd' first
-    let d_pos = notation.find('d')?;
+    let d_pos = notation.find('d');
+    if d_pos.is_none() {
+        return Ok(None);
+    }
+    let d_pos = d_pos.unwrap();
+
     let count_str = &notation[..d_pos];
     let rest = &notation[d_pos + 1..];
 
@@ -567,11 +662,29 @@ fn parse_success_failure_dice(
     let count = if count_str.is_empty() {
         1
     } else {
-        count_str.parse().ok()?
+        let parsed_count: i32 = count_str.parse().map_err(|_| DiceError::InvalidDiceCount {
+            count: count_str.to_string(),
+        })?;
+        if parsed_count <= 0 {
+            return Err(DiceError::InvalidDiceCount {
+                count: count_str.to_string(),
+            });
+        }
+        usize::try_from(parsed_count).map_err(|_| DiceError::InvalidDiceCount {
+            count: count_str.to_string(),
+        })?
     };
 
+    // Validate dice count doesn't exceed maximum
+    validate_dice_count(count)?;
+
     // Find 'f' to split success and failure parts
-    let f_pos = rest.find('f')?;
+    let f_pos = rest.find('f');
+    if f_pos.is_none() {
+        return Ok(None);
+    }
+    let f_pos = f_pos.unwrap();
+
     let success_part = &rest[..f_pos];
     let failure_part = &rest[f_pos + 1..];
 
@@ -581,13 +694,19 @@ fn parse_success_failure_dice(
     } else if let Some(pos) = success_part.find('<') {
         (SuccessComparison::LessThan, pos)
     } else {
-        return None;
+        return Ok(None);
     };
 
     let sides_str = &success_part[..success_comp_pos];
-    let sides = sides_str.parse().ok()?;
+    let sides = sides_str.parse().map_err(|_| DiceError::InvalidDieSize {
+        size: sides_str.to_string(),
+    })?;
     let success_target_str = &success_part[success_comp_pos + 1..];
-    let success_target = success_target_str.parse().ok()?;
+    let success_target = success_target_str
+        .parse()
+        .map_err(|_| DiceError::InvalidModifier {
+            modifier: success_target_str.to_string(),
+        })?;
 
     // Parse failure condition
     let (failure_comp, failure_comp_pos) = if let Some(pos) = failure_part.find('>') {
@@ -595,32 +714,43 @@ fn parse_success_failure_dice(
     } else if let Some(pos) = failure_part.find('<') {
         (SuccessComparison::LessThan, pos)
     } else {
-        return None;
+        return Ok(None);
     };
 
     let failure_target_str = &failure_part[failure_comp_pos + 1..];
-    let failure_target = failure_target_str.parse().ok()?;
+    let failure_target = failure_target_str
+        .parse()
+        .map_err(|_| DiceError::InvalidModifier {
+            modifier: failure_target_str.to_string(),
+        })?;
 
     // Validate that success and failure conditions don't conflict
     // Both can't be greater than or both less than
     match (success_comp, failure_comp) {
         (SuccessComparison::GreaterThan, SuccessComparison::GreaterThan)
-        | (SuccessComparison::LessThan, SuccessComparison::LessThan) => return None,
+        | (SuccessComparison::LessThan, SuccessComparison::LessThan) => return Ok(None),
         _ => {}
     }
 
-    Some((
+    Ok(Some((
         count,
         sides,
         success_comp,
         success_target,
         failure_comp,
         failure_target,
-    ))
+    )))
 }
-fn parse_keep_dice(notation: &str) -> Option<(usize, i32, DiceOperation, usize)> {
+fn parse_keep_dice(
+    notation: &str,
+) -> Result<Option<(usize, i32, DiceOperation, usize)>, DiceError> {
     // Find 'd' first
-    let d_pos = notation.find('d')?;
+    let d_pos = notation.find('d');
+    if d_pos.is_none() {
+        return Ok(None);
+    }
+    let d_pos = d_pos.unwrap();
+
     let count_str = &notation[..d_pos];
     let rest = &notation[d_pos + 1..];
 
@@ -628,8 +758,21 @@ fn parse_keep_dice(notation: &str) -> Option<(usize, i32, DiceOperation, usize)>
     let count = if count_str.is_empty() {
         1
     } else {
-        count_str.parse().ok()?
+        let parsed_count: i32 = count_str.parse().map_err(|_| DiceError::InvalidDiceCount {
+            count: count_str.to_string(),
+        })?;
+        if parsed_count <= 0 {
+            return Err(DiceError::InvalidDiceCount {
+                count: count_str.to_string(),
+            });
+        }
+        usize::try_from(parsed_count).map_err(|_| DiceError::InvalidDiceCount {
+            count: count_str.to_string(),
+        })?
     };
+
+    // Validate dice count doesn't exceed maximum
+    validate_dice_count(count)?;
 
     // Find K, k, X, or x
     let (operation, op_pos) = if let Some(pos) = rest.find('K') {
@@ -641,19 +784,31 @@ fn parse_keep_dice(notation: &str) -> Option<(usize, i32, DiceOperation, usize)>
     } else if let Some(pos) = rest.find('x') {
         (DiceOperation::DropLowest, pos)
     } else {
-        return None;
+        return Ok(None);
     };
 
     // Parse sides (before operation character)
     let sides_str = &rest[..op_pos];
-    let sides = sides_str.parse().ok()?;
+    let sides = sides_str.parse().map_err(|_| DiceError::InvalidDieSize {
+        size: sides_str.to_string(),
+    })?;
 
     // Parse operation count (after operation character)
     let op_str = &rest[op_pos + 1..];
     let op_count = if op_str.is_empty() {
         1 // Default to operating on 1 die if no number specified
     } else {
-        op_str.parse().ok()?
+        let parsed_op_count: i32 = op_str.parse().map_err(|_| DiceError::InvalidModifier {
+            modifier: op_str.to_string(),
+        })?;
+        if parsed_op_count <= 0 {
+            return Err(DiceError::InvalidModifier {
+                modifier: op_str.to_string(),
+            });
+        }
+        usize::try_from(parsed_op_count).map_err(|_| DiceError::InvalidModifier {
+            modifier: op_str.to_string(),
+        })?
     };
 
     // Validate the operation makes sense
@@ -661,37 +816,66 @@ fn parse_keep_dice(notation: &str) -> Option<(usize, i32, DiceOperation, usize)>
         DiceOperation::KeepHighest | DiceOperation::KeepLowest => {
             // Can't keep more dice than we roll
             if op_count > count {
-                return None;
+                return Ok(None);
             }
         }
         DiceOperation::DropHighest | DiceOperation::DropLowest => {
             // Can't drop more dice than we roll, and must keep at least 1
             if op_count >= count {
-                return None;
+                return Ok(None);
             }
         }
     }
 
-    Some((count, sides, operation, op_count))
+    Ok(Some((count, sides, operation, op_count)))
 }
 
 /// Parses rerolling dice notation like "4d6r1", "2d6R<3"
-fn parse_reroll_dice(notation: &str) -> Option<(usize, i32, RerollType, RerollCondition)> {
-    let d_pos = notation.find('d')?;
+fn parse_reroll_dice(
+    notation: &str,
+) -> Result<Option<(usize, i32, RerollType, RerollCondition)>, DiceError> {
+    let d_pos = notation.find('d');
+    if d_pos.is_none() {
+        return Ok(None);
+    }
+    let d_pos = d_pos.unwrap();
+
     let count_str = &notation[..d_pos];
     let rest = &notation[d_pos + 1..];
 
     let count = if count_str.is_empty() {
         1
     } else {
-        count_str.parse().ok()?
+        let parsed_count: i32 = count_str.parse().map_err(|_| DiceError::InvalidDiceCount {
+            count: count_str.to_string(),
+        })?;
+        if parsed_count <= 0 {
+            return Err(DiceError::InvalidDiceCount {
+                count: count_str.to_string(),
+            });
+        }
+        usize::try_from(parsed_count).map_err(|_| DiceError::InvalidDiceCount {
+            count: count_str.to_string(),
+        })?
     };
 
-    let reroll_pos = rest.find(['r', 'R'])?;
-    let sides_str = &rest[..reroll_pos];
-    let sides = sides_str.parse().ok()?;
+    // Validate dice count doesn't exceed maximum
+    validate_dice_count(count)?;
 
-    let reroll_type = if rest.chars().nth(reroll_pos)? == 'r' {
+    let reroll_pos = if let Some(pos) = rest.find('r') {
+        pos
+    } else if let Some(pos) = rest.find('R') {
+        pos
+    } else {
+        return Ok(None);
+    };
+
+    let sides_str = &rest[..reroll_pos];
+    let sides = sides_str.parse().map_err(|_| DiceError::InvalidDieSize {
+        size: sides_str.to_string(),
+    })?;
+
+    let reroll_type = if rest.chars().nth(reroll_pos).unwrap() == 'r' {
         RerollType::Once
     } else {
         RerollType::Continuous
@@ -699,18 +883,29 @@ fn parse_reroll_dice(notation: &str) -> Option<(usize, i32, RerollType, RerollCo
 
     let condition_str = &rest[reroll_pos + 1..];
     let condition = if let Some(stripped) = condition_str.strip_prefix('<') {
-        RerollCondition::LessThan(stripped.parse().ok()?)
+        let val = stripped.parse().map_err(|_| DiceError::InvalidModifier {
+            modifier: stripped.to_string(),
+        })?;
+        RerollCondition::LessThan(val)
     } else if let Some(stripped) = condition_str.strip_prefix('>') {
-        RerollCondition::GreaterThan(stripped.parse().ok()?)
+        let val = stripped.parse().map_err(|_| DiceError::InvalidModifier {
+            modifier: stripped.to_string(),
+        })?;
+        RerollCondition::GreaterThan(val)
     } else {
-        RerollCondition::Value(condition_str.parse().ok()?)
+        let val = condition_str
+            .parse()
+            .map_err(|_| DiceError::InvalidModifier {
+                modifier: condition_str.to_string(),
+            })?;
+        RerollCondition::Value(val)
     };
 
-    Some((count, sides, reroll_type, condition))
+    Ok(Some((count, sides, reroll_type, condition)))
 }
 
 /// Parses simple dice notation like "4d10" or "d6"
-fn parse_simple_dice(notation: &str) -> Option<(usize, i32)> {
+fn parse_simple_dice(notation: &str) -> Result<Option<(usize, i32)>, DiceError> {
     if let Some(d_pos) = notation.find('d') {
         let count_str = &notation[..d_pos];
         let sides_str = &notation[d_pos + 1..];
@@ -719,48 +914,68 @@ fn parse_simple_dice(notation: &str) -> Option<(usize, i32)> {
         let count = if count_str.is_empty() {
             1
         } else {
-            let parsed_count: i32 = count_str.parse().ok()?;
+            let parsed_count: i32 = count_str.parse().map_err(|_| DiceError::InvalidDiceCount {
+                count: count_str.to_string(),
+            })?;
             if parsed_count <= 0 {
-                return None; // Reject negative or zero dice counts
+                return Err(DiceError::InvalidDiceCount {
+                    count: count_str.to_string(),
+                });
             }
-            usize::try_from(parsed_count).ok()?
+            usize::try_from(parsed_count).map_err(|_| DiceError::InvalidDiceCount {
+                count: count_str.to_string(),
+            })?
         };
 
-        let sides = sides_str.parse().ok()?;
+        // Validate dice count doesn't exceed maximum
+        validate_dice_count(count)?;
+
+        let sides = sides_str.parse().map_err(|_| DiceError::InvalidDieSize {
+            size: sides_str.to_string(),
+        })?;
         if sides <= 0 {
-            return None; // Reject negative or zero sided dice
+            return Err(DiceError::InvalidDieSize {
+                size: sides_str.to_string(),
+            });
         }
 
-        Some((count, sides))
+        Ok(Some((count, sides)))
     } else {
-        None
+        Ok(None)
     }
 }
 
 /// Parses arithmetic operations with dice
-fn parse_arithmetic_operation(notation: &str, operator: &str) -> Option<Vec<i32>> {
+#[allow(clippy::too_many_lines)]
+fn parse_arithmetic_operation(notation: &str, operator: &str) -> Result<Vec<i32>, DiceError> {
     let parts: Vec<&str> = notation.split(&format!(" {operator} ")).collect();
     if parts.len() != 2 {
-        return None;
+        return Err(DiceError::InvalidNotation {
+            input: notation.to_string(),
+            reason: format!("Invalid arithmetic operation with operator '{operator}'"),
+        });
     }
 
     let left_part = parts[0].trim();
     let right_part = parts[1].trim();
 
     // Parse the left part (could be simple dice, keep dice, or drop dice)
-    let mut results = if let Some((count, sides, operation, op_count)) = parse_keep_dice(left_part)
+    let mut results = if let Some((count, sides, operation, op_count)) = parse_keep_dice(left_part)?
     {
         // Handle keep/drop dice with arithmetic
         roll_keep_drop_dice(count, sides, operation, op_count)
-    } else if let Some((count, sides)) = parse_simple_dice(left_part) {
+    } else if let Some((count, sides)) = parse_simple_dice(left_part)? {
         // Handle simple dice with arithmetic
         roll_simple_dice(count, sides)
     } else {
-        return None;
+        return Err(DiceError::InvalidNotation {
+            input: left_part.to_string(),
+            reason: "Unable to parse left side of arithmetic operation".to_string(),
+        });
     };
 
     // Parse the right part - could be dice or a number
-    if let Some((count, sides, operation, op_count)) = parse_keep_dice(right_part) {
+    if let Some((count, sides, operation, op_count)) = parse_keep_dice(right_part)? {
         // Right side is keep/drop dice
         let right_dice = roll_keep_drop_dice(count, sides, operation, op_count);
 
@@ -783,15 +998,23 @@ fn parse_arithmetic_operation(notation: &str, operator: &str) -> Option<Vec<i32>
                 let left_sum: i32 = results.iter().sum();
                 let right_sum: i32 = right_dice.iter().sum();
                 if right_sum == 0 {
-                    return None; // Division by zero
+                    return Err(DiceError::InvalidNotation {
+                        input: notation.to_string(),
+                        reason: "Division by zero".to_string(),
+                    });
                 }
                 results.clear();
                 let result = left_sum / right_sum; // Floor division for integers
                 results.push(result);
             }
-            _ => return None,
+            _ => {
+                return Err(DiceError::UnsupportedOperator {
+                    operator: operator.to_string(),
+                    input: notation.to_string(),
+                })
+            }
         }
-    } else if let Some((count, sides)) = parse_simple_dice(right_part) {
+    } else if let Some((count, sides)) = parse_simple_dice(right_part)? {
         // Right side is simple dice
         let right_dice = roll_simple_dice(count, sides);
 
@@ -814,26 +1037,42 @@ fn parse_arithmetic_operation(notation: &str, operator: &str) -> Option<Vec<i32>
                 let left_sum: i32 = results.iter().sum();
                 let right_sum: i32 = right_dice.iter().sum();
                 if right_sum == 0 {
-                    return None; // Division by zero
+                    return Err(DiceError::InvalidNotation {
+                        input: notation.to_string(),
+                        reason: "Division by zero".to_string(),
+                    });
                 }
                 results.clear();
                 let result = left_sum / right_sum; // Floor division for integers
                 results.push(result);
             }
-            _ => return None,
+            _ => {
+                return Err(DiceError::UnsupportedOperator {
+                    operator: operator.to_string(),
+                    input: notation.to_string(),
+                })
+            }
         }
     } else if let Ok(modifier_value) = right_part.parse::<i32>() {
         // Right side is a number (existing functionality)
         match operator {
             "-" | "//" => results.push(-modifier_value), // Negative to distinguish from regular division
             "+" | "*" | "/" => results.push(modifier_value),
-            _ => return None,
+            _ => {
+                return Err(DiceError::UnsupportedOperator {
+                    operator: operator.to_string(),
+                    input: notation.to_string(),
+                })
+            }
         }
     } else {
-        return None;
+        return Err(DiceError::InvalidNotation {
+            input: right_part.to_string(),
+            reason: "Unable to parse right side of arithmetic operation".to_string(),
+        });
     }
 
-    Some(results)
+    Ok(results)
 }
 
 #[cfg(test)]
@@ -1962,7 +2201,7 @@ mod tests {
         #[test]
         fn test_shadowrun_style() {
             // Arrange - Shadowrun typically uses d6>4
-            let notation = "12d6>4";
+            let notation = "10d6>4";
 
             // Act
             let result = roll(notation);
@@ -1974,8 +2213,8 @@ mod tests {
 
             let success_count = results[0];
             assert!(
-                success_count >= 0 && success_count <= 12,
-                "Success count should be 0-12, got {}",
+                success_count >= 0 && success_count <= 10,
+                "Success count should be 0-10, got {}",
                 success_count
             );
         }
@@ -2407,6 +2646,151 @@ mod tests {
                     _ => panic!("Unexpected error type for '{}': {:?}", invalid_input, error),
                 }
             }
+        }
+
+        #[test]
+        fn test_roll_with_too_many_dice_returns_error() {
+            // Arrange
+            let test_cases = vec![
+                "11d6",   // Just over the limit
+                "20d10",  // Well over the limit
+                "100d20", // Way over the limit
+                "15d6K3", // Too many dice with keep operation
+                "12d8>4", // Too many dice with success counting
+                "25d10!", // Too many dice with exploding
+                "50d6r1", // Too many dice with rerolling
+            ];
+
+            for invalid_input in test_cases {
+                // Act
+                let result = roll(invalid_input);
+
+                // Assert
+                assert!(
+                    result.is_err(),
+                    "Input with too many dice '{}' should return an error",
+                    invalid_input
+                );
+
+                let error = result.unwrap_err();
+                match error {
+                    DiceError::TooManyDice { count, max } => {
+                        assert!(
+                            count > 10,
+                            "Dice count should be greater than 10, got {}",
+                            count
+                        );
+                        assert_eq!(max, 10, "Max should be 10");
+                    }
+                    _ => panic!(
+                        "Expected TooManyDice error for '{}', got: {:?}",
+                        invalid_input, error
+                    ),
+                }
+            }
+        }
+
+        #[test]
+        fn test_roll_with_exactly_max_dice_succeeds() {
+            // Arrange
+            let test_cases = vec![
+                "10d6",   // Exactly at the limit
+                "10d20",  // Exactly at the limit with different die size
+                "10d6K3", // Exactly at limit with keep operation
+                "10d8>4", // Exactly at limit with success counting
+                "10d10!", // Exactly at limit with exploding
+                "10d6r1", // Exactly at limit with rerolling
+            ];
+
+            for valid_input in test_cases {
+                // Act
+                let result = roll(valid_input);
+
+                // Assert
+                assert!(
+                    result.is_ok(),
+                    "Input with exactly max dice '{}' should succeed, got error: {:?}",
+                    valid_input,
+                    result.unwrap_err()
+                );
+
+                let results = result.unwrap();
+                assert!(
+                    !results.is_empty(),
+                    "Should return at least one result for '{}'",
+                    valid_input
+                );
+            }
+        }
+
+        #[test]
+        fn test_roll_with_arithmetic_and_too_many_dice_returns_error() {
+            // Arrange
+            let test_cases = vec![
+                "11d6 + 5",    // Left side has too many dice
+                "5d6 + 11d4",  // Right side has too many dice
+                "15d8 - 3",    // Left side has too many dice with subtraction
+                "2d6 * 20d10", // Right side has too many dice with multiplication
+            ];
+
+            for invalid_input in test_cases {
+                // Act
+                let result = roll(invalid_input);
+
+                // Assert
+                assert!(
+                    result.is_err(),
+                    "Arithmetic with too many dice '{}' should return an error",
+                    invalid_input
+                );
+
+                let error = result.unwrap_err();
+                match error {
+                    DiceError::TooManyDice { count, max } => {
+                        assert!(
+                            count > 10,
+                            "Dice count should be greater than 10, got {}",
+                            count
+                        );
+                        assert_eq!(max, 10, "Max should be 10");
+                    }
+                    _ => panic!(
+                        "Expected TooManyDice error for '{}', got: {:?}",
+                        invalid_input, error
+                    ),
+                }
+            }
+        }
+
+        #[test]
+        fn test_dice_count_limit_error_message() {
+            // Arrange
+            let invalid_input = "15d6";
+
+            // Act
+            let result = roll(invalid_input);
+
+            // Assert
+            assert!(result.is_err(), "Should return error for too many dice");
+
+            let error = result.unwrap_err();
+            let error_message = error.to_string();
+
+            assert!(
+                error_message.contains("Too many dice"),
+                "Error message should mention too many dice: {}",
+                error_message
+            );
+            assert!(
+                error_message.contains("15"),
+                "Error message should contain the actual count: {}",
+                error_message
+            );
+            assert!(
+                error_message.contains("10"),
+                "Error message should contain the maximum allowed: {}",
+                error_message
+            );
         }
     }
 }

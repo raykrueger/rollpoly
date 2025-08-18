@@ -17,7 +17,7 @@
 //! These tests verify the public API functionality and ensure that
 //! the library works correctly when used as an external dependency.
 
-use rollpoly::roll;
+use rollpoly::{roll, DiceError};
 
 #[test]
 fn test_public_api_basic_dice_rolling() {
@@ -111,9 +111,21 @@ fn test_randomness_across_multiple_calls() {
 
 #[test]
 fn test_large_dice_counts() {
-    // Test that the library can handle larger dice counts
-    let result = roll("100d6").expect("Should handle large dice counts");
-    assert_eq!(result.len(), 100);
+    // Test that the library properly enforces the dice count limit
+    let result = roll("11d6");
+    assert!(result.is_err(), "Should reject dice counts over the limit");
+
+    match result.unwrap_err() {
+        DiceError::TooManyDice { count, max } => {
+            assert_eq!(count, 11);
+            assert_eq!(max, 10);
+        }
+        _ => panic!("Expected TooManyDice error"),
+    }
+
+    // Test that exactly the maximum works
+    let result = roll("10d6").expect("Should handle exactly the maximum dice count");
+    assert_eq!(result.len(), 10);
 
     for &die_result in &result {
         assert!(die_result >= 1 && die_result <= 6);
