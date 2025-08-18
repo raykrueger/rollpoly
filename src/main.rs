@@ -232,7 +232,7 @@ fn run_statistics(notation: &str, rolls: usize, verbose: bool) -> Result<()> {
         println!("Running statistical analysis for '{notation}' over {rolls} rolls");
     }
 
-    let mut sums = Vec::new();
+    let mut sums = Vec::with_capacity(rolls);
 
     for _ in 0..rolls {
         let roll_result = rollpoly::roll(notation)

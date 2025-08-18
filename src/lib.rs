@@ -173,7 +173,7 @@ fn roll_keep_drop_dice(
 ) -> Vec<i32> {
     use rand::Rng;
     let mut rng = rand::rng();
-    let mut dice_results = Vec::new();
+    let mut dice_results = Vec::with_capacity(count);
 
     // Roll all the dice
     for _ in 0..count {
@@ -207,7 +207,7 @@ fn roll_keep_drop_dice(
 fn roll_simple_dice(count: usize, sides: i32) -> Vec<i32> {
     use rand::Rng;
     let mut rng = rand::rng();
-    let mut dice_results = Vec::new();
+    let mut dice_results = Vec::with_capacity(count);
     for _ in 0..count {
         dice_results.push(rng.random_range(1..=sides));
     }
@@ -368,7 +368,7 @@ fn parse_and_roll_dice(notation: &str) -> Result<Vec<i32>, DiceError> {
     // Handle rerolling dice syntax (e.g., "4d6r1", "2d6R<3")
     // This must come before success counting to avoid conflicts with < and >
     if let Some((count, sides, reroll_type, reroll_condition)) = parse_reroll_dice(notation)? {
-        let mut results = Vec::new();
+        let mut results = Vec::with_capacity(count);
         for _ in 0..count {
             let mut current_roll = rng.random_range(1..=sides);
             if reroll_type == RerollType::Once {
@@ -426,7 +426,7 @@ fn parse_and_roll_dice(notation: &str) -> Result<Vec<i32>, DiceError> {
 
     // Handle keep highest/lowest syntax (e.g., "4d10K", "7d12K3", "3d6k", "100d6k99")
     if let Some((count, sides, keep_type, keep_count)) = parse_keep_dice(notation)? {
-        let mut results = Vec::new();
+        let mut results = Vec::with_capacity(count);
 
         // Roll all the dice
         for _ in 0..count {
@@ -458,7 +458,7 @@ fn parse_and_roll_dice(notation: &str) -> Result<Vec<i32>, DiceError> {
 
     // Handle simple dice notation (e.g., "4d10", "d6")
     if let Some((count, sides)) = parse_simple_dice(notation)? {
-        let mut results = Vec::new();
+        let mut results = Vec::with_capacity(count);
         for _ in 0..count {
             results.push(rng.random_range(1..=sides));
         }
@@ -948,11 +948,24 @@ fn parse_simple_dice(notation: &str) -> Result<Option<(usize, i32)>, DiceError> 
 /// Parses arithmetic operations with dice
 #[allow(clippy::too_many_lines)]
 fn parse_arithmetic_operation(notation: &str, operator: &str) -> Result<Vec<i32>, DiceError> {
-    let parts: Vec<&str> = notation.split(&format!(" {operator} ")).collect();
+    let parts: Vec<&str> = match operator {
+        "+" => notation.split(" + ").collect(),
+        "-" => notation.split(" - ").collect(),
+        "*" => notation.split(" * ").collect(),
+        "/" => notation.split(" / ").collect(),
+        "//" => notation.split(" // ").collect(),
+        _ => {
+            return Err(DiceError::InvalidNotation {
+                input: notation.to_string(),
+                reason: "Unsupported arithmetic operator".to_string(),
+            })
+        }
+    };
+
     if parts.len() != 2 {
         return Err(DiceError::InvalidNotation {
             input: notation.to_string(),
-            reason: format!("Invalid arithmetic operation with operator '{operator}'"),
+            reason: "Invalid arithmetic operation format".to_string(),
         });
     }
 
