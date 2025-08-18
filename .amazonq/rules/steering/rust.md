@@ -216,12 +216,218 @@ cargo fmt
 cargo check
 ```
 
-## Performance Tips
+## Performance Best Practices
 
-- **Use `&str` over `String`** for parameters
-- **Prefer `Vec::with_capacity()`** when size is known
-- **Use `Box<str>` for immutable strings**
-- **Consider `SmallVec`** for small collections
+### Memory Management
+
+- **Pre-allocate collections**: Use `Vec::with_capacity(n)` when size is known
+- **Avoid unnecessary allocations**: Prefer `&str` over `String` for parameters
+- **Reuse allocations**: Clear and reuse `Vec`/`HashMap` instead of creating new ones
+- **Use `Box<str>` for immutable strings** that don't need to grow
+- **Consider `SmallVec`** for collections that are usually small (< 24 bytes)
+
+```rust
+// Good - pre-allocate when size is known
+let mut results = Vec::with_capacity(dice_count);
+for _ in 0..dice_count {
+    results.push(roll_die());
+}
+
+// Avoid - causes multiple reallocations
+let mut results = Vec::new();
+for _ in 0..dice_count {
+    results.push(roll_die()); // May reallocate multiple times
+}
+```
+
+### String Operations
+
+- **Avoid `format!()` in hot paths**: Use static strings or pre-computed values
+- **Use `&'static str` for constants**: Avoid runtime string creation
+- **Prefer single-pass parsing**: Avoid multiple `contains()` or `find()` calls
+- **Use `split_once()` over `split().collect()`** for simple cases
+
+```rust
+// Good - avoid format! in loops
+const OPERATORS: &[&str] = &[" + ", " - ", " * ", " / "];
+for op in OPERATORS {
+    if input.contains(op) {
+        return parse_operation(input, op);
+    }
+}
+
+// Avoid - creates temporary strings
+for op in &["+", "-", "*", "/"] {
+    if input.contains(&format!(" {op} ")) { // Allocates each time
+        return parse_operation(input, op);
+    }
+}
+```
+
+### Function Design
+
+- **Pass expensive resources by reference**: RNG, large structs, etc.
+- **Use `impl Trait` for zero-cost abstractions**: Especially for iterators
+- **Prefer iterators over index-based loops**: Often faster and more idiomatic
+- **Avoid cloning in hot paths**: Use borrowing when possible
+
+```rust
+// Good - pass RNG by reference to avoid initialization overhead
+fn roll_dice(count: usize, sides: i32, rng: &mut impl Rng) -> Vec<i32> {
+    (0..count).map(|_| rng.gen_range(1..=sides)).collect()
+}
+
+// Avoid - creates new RNG each call
+fn roll_dice(count: usize, sides: i32) -> Vec<i32> {
+    let mut rng = rand::thread_rng(); // Initialization overhead
+    (0..count).map(|_| rng.gen_range(1..=sides)).collect()
+}
+```
+
+### Parsing and Text Processing
+
+- **Use byte string matching** for ASCII-only operations
+- **Implement single-pass parsers** when possible
+- **Cache compiled regexes** using `lazy_static` or `once_cell`
+- **Prefer `chars().nth()` over string slicing** for Unicode safety
+
+```rust
+// Good - single pass parsing
+fn find_operator(input: &str) -> Option<(&str, usize)> {
+    let bytes = input.as_bytes();
+    for (i, window) in bytes.windows(3).enumerate() {
+        match window {
+            b" + " => return Some(("+", i)),
+            b" - " => return Some(("-", i)),
+            b" * " => return Some(("*", i)),
+            _ => continue,
+        }
+    }
+    None
+}
+
+// Avoid - multiple string scans
+fn find_operator(input: &str) -> Option<&str> {
+    if input.contains(" + ") { Some("+") }
+    else if input.contains(" - ") { Some("-") }
+    else if input.contains(" * ") { Some("*") }
+    else { None }
+}
+```
+
+### Error Handling Performance
+
+- **Use `?` operator**: More efficient than manual match statements
+- **Avoid string formatting in error paths**: Use static messages when possible
+- **Consider `anyhow` for applications**: Lower overhead than custom error types
+- **Use `thiserror` for libraries**: Zero-cost error conversion
+
+```rust
+// Good - static error messages
+#[derive(Error, Debug)]
+pub enum DiceError {
+    #[error("Invalid die size: must be positive")]
+    InvalidDieSize,
+    #[error("Too many dice: maximum {max}, got {count}")]
+    TooManyDice { count: usize, max: usize },
+}
+
+// Avoid - dynamic formatting in hot paths
+fn validate_die_size(size: i32) -> Result<(), String> {
+    if size <= 0 {
+        Err(format!("Invalid die size: {}", size)) // Allocates
+    } else {
+        Ok(())
+    }
+}
+```
+
+### Benchmarking Guidelines
+
+- **Use `criterion` for micro-benchmarks**: More accurate than `std::time`
+- **Profile with `perf` or `valgrind`**: Identify actual bottlenecks
+- **Test with realistic data**: Don't optimize for artificial cases
+- **Measure allocations**: Use `dhat` or similar tools
+
+```rust
+// Example criterion benchmark
+use criterion::{black_box, criterion_group, criterion_main, Criterion};
+
+fn bench_dice_rolling(c: &mut Criterion) {
+    c.bench_function("roll 4d6K3", |b| {
+        b.iter(|| roll(black_box("4d6K3")))
+    });
+}
+
+criterion_group!(benches, bench_dice_rolling);
+criterion_main!(benches);
+```
+
+### When NOT to Optimize
+
+- **Don't optimize prematurely**: Profile first, optimize bottlenecks
+- **Readability over micro-optimizations**: Unless in proven hot paths
+- **Avoid unsafe unless necessary**: Safety is more important than speed
+- **Don't sacrifice API ergonomics**: For minor performance gains
+
+### Hot Path Optimization Patterns
+
+**Identifying Hot Paths:**
+- Functions called in loops or recursively
+- String parsing and validation logic
+- Collection operations with unknown sizes
+- Resource initialization (RNG, connections, etc.)
+
+**Common Hot Path Anti-patterns:**
+```rust
+// Anti-pattern: Repeated allocations in loops
+for item in items {
+    let mut temp = Vec::new(); // Allocates every iteration
+    process_item(item, &mut temp);
+}
+
+// Better: Reuse allocation
+let mut temp = Vec::new();
+for item in items {
+    temp.clear(); // Reuse existing capacity
+    process_item(item, &mut temp);
+}
+
+// Anti-pattern: String formatting in validation
+fn validate_input(input: &str) -> Result<(), String> {
+    if input.is_empty() {
+        Err(format!("Input cannot be empty: '{}'", input)) // Allocates
+    } else {
+        Ok(())
+    }
+}
+
+// Better: Static error messages
+#[derive(Error, Debug)]
+enum ValidationError {
+    #[error("Input cannot be empty")]
+    EmptyInput,
+}
+
+// Anti-pattern: Multiple string scans
+if input.contains("pattern1") || input.contains("pattern2") {
+    // Scans string multiple times
+}
+
+// Better: Single pass with state machine or regex
+```
+
+**Performance Measurement:**
+```rust
+// Add to Cargo.toml for benchmarking
+[dev-dependencies]
+criterion = "0.5"
+
+// Simple timing for development
+let start = std::time::Instant::now();
+expensive_operation();
+println!("Operation took: {:?}", start.elapsed());
+```
 
 ## Common Patterns
 
@@ -263,6 +469,31 @@ impl UserId {
 - **Use workspace** for multi-crate projects
 - **Minimal dependencies**: Only add what you need
 - **Check with `cargo audit`** regularly
+
+### Performance-Oriented Dependency Choices
+
+- **Prefer `thiserror` over `anyhow`** for libraries (zero-cost error conversion)
+- **Use `anyhow` for applications** (lower overhead than custom error types)
+- **Consider `smallvec`** for collections usually < 24 bytes
+- **Use `once_cell` or `std::sync::LazyLock`** for expensive static initialization
+- **Profile before adding dependencies**: Each crate adds compile time and binary size
+
+```toml
+# Performance-conscious dependency selection
+[dependencies]
+# Zero-cost error handling for libraries
+thiserror = "2.0"
+# Flexible error handling for applications  
+anyhow = "1.0"
+# Small vector optimization
+smallvec = "1.0"
+# Lazy static initialization
+once_cell = "1.0"
+
+[dev-dependencies]
+# Accurate benchmarking
+criterion = "0.5"
+```
 
 ## Documentation
 
