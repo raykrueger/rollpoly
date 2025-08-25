@@ -342,17 +342,18 @@ fn parse_and_roll_dice(notation: &str) -> Result<Vec<i32>, DiceError> {
     use rand::Rng;
     let mut rng = rand::rng();
 
-    // Handle different operators (arithmetic operations first)
-    if notation.contains(" + ") {
-        return parse_arithmetic_operation(notation, "+");
-    } else if notation.contains(" - ") {
-        return parse_arithmetic_operation(notation, "-");
-    } else if notation.contains(" * ") {
-        return parse_arithmetic_operation(notation, "*");
-    } else if notation.contains(" // ") {
-        return parse_arithmetic_operation(notation, "//");
-    } else if notation.contains(" / ") {
-        return parse_arithmetic_operation(notation, "/");
+    // Handle arithmetic operations (both spaced and non-spaced)
+    for operator in ["//", "/", "*", "+", "-"] {
+        // Try spaced version first (for backward compatibility)
+        let spaced_pattern = format!(" {operator} ");
+        if notation.contains(&spaced_pattern) {
+            return parse_arithmetic_operation(notation, operator);
+        }
+
+        // Then try non-spaced version
+        if let Some(result) = try_parse_non_spaced_arithmetic(notation, operator)? {
+            return Ok(result);
+        }
     }
 
     // Handle exploding dice syntax (e.g., "2d20!", "7d20!3", "d20!>10", "3d12!<2")
@@ -948,19 +949,9 @@ fn parse_simple_dice(notation: &str) -> Result<Option<(usize, i32)>, DiceError> 
 /// Parses arithmetic operations with dice
 #[allow(clippy::too_many_lines)]
 fn parse_arithmetic_operation(notation: &str, operator: &str) -> Result<Vec<i32>, DiceError> {
-    let parts: Vec<&str> = match operator {
-        "+" => notation.split(" + ").collect(),
-        "-" => notation.split(" - ").collect(),
-        "*" => notation.split(" * ").collect(),
-        "/" => notation.split(" / ").collect(),
-        "//" => notation.split(" // ").collect(),
-        _ => {
-            return Err(DiceError::InvalidNotation {
-                input: notation.to_string(),
-                reason: "Unsupported arithmetic operator".to_string(),
-            })
-        }
-    };
+    // Try to split on spaced operator first
+    let spaced_pattern = format!(" {operator} ");
+    let parts: Vec<&str> = notation.split(&spaced_pattern).collect();
 
     if parts.len() != 2 {
         return Err(DiceError::InvalidNotation {
@@ -1086,6 +1077,102 @@ fn parse_arithmetic_operation(notation: &str, operator: &str) -> Result<Vec<i32>
     }
 
     Ok(results)
+}
+
+/// Tries to parse arithmetic operations without spaces (e.g., "2d12+2")
+fn try_parse_non_spaced_arithmetic(
+    notation: &str,
+    operator: &str,
+) -> Result<Option<Vec<i32>>, DiceError> {
+    // Find the operator position, being careful to avoid conflicts with other syntax
+    let operator_positions: Vec<usize> = notation
+        .match_indices(operator)
+        .map(|(pos, _)| pos)
+        .collect();
+
+    for pos in operator_positions {
+        if is_valid_arithmetic_position(notation, pos, operator) {
+            // Split the notation at this position
+            let left_part = &notation[..pos];
+            let right_part = &notation[pos + operator.len()..];
+
+            if left_part.is_empty() || right_part.is_empty() {
+                continue;
+            }
+
+            // Use the existing parse_arithmetic_operation logic by creating a spaced version
+            let spaced_notation = format!("{left_part} {operator} {right_part}");
+            return Ok(Some(parse_arithmetic_operation(
+                &spaced_notation,
+                operator,
+            )?));
+        }
+    }
+
+    Ok(None)
+}
+
+/// Checks if an operator position is valid for arithmetic (not part of other syntax)
+fn is_valid_arithmetic_position(notation: &str, pos: usize, operator: &str) -> bool {
+    let before = &notation[..pos];
+    let after = &notation[pos + operator.len()..];
+
+    // The left side should look like dice notation (contain 'd')
+    if !before.contains('d') {
+        return false;
+    }
+
+    // The right side should be a number or dice notation
+    // If it starts with '<' or '>', it's likely part of success counting or exploding dice
+    if after.starts_with('<') || after.starts_with('>') {
+        return false;
+    }
+
+    // Check if this operator is part of exploding dice syntax (after '!')
+    if pos > 0 && notation.chars().nth(pos - 1) == Some('!') {
+        return false;
+    }
+
+    // Check if this operator is part of rerolling syntax (after 'r' or 'R')
+    if pos > 0 {
+        if let Some(prev_char) = notation.chars().nth(pos - 1) {
+            if prev_char == 'r' || prev_char == 'R' {
+                return false;
+            }
+        }
+    }
+
+    // Check if we're in the middle of a success/failure condition
+    if before.contains('f') || before.contains('>') || before.contains('<') {
+        // This might be part of success/failure syntax, be more careful
+        // Only allow if the right side looks like a simple number or dice
+        if !after.chars().all(|c| c.is_ascii_digit() || c == 'd') {
+            return false;
+        }
+    }
+
+    // For keep/drop operations (K, k, X, x), the operator should come after the operation
+    // e.g., "4d6K3+2" - the '+' should come after the '3'
+    if before.contains('K') || before.contains('k') || before.contains('X') || before.contains('x')
+    {
+        // Find the last keep/drop operation
+        let mut last_op_pos = None;
+        for (i, c) in before.char_indices() {
+            if c == 'K' || c == 'k' || c == 'X' || c == 'x' {
+                last_op_pos = Some(i);
+            }
+        }
+
+        if let Some(op_pos) = last_op_pos {
+            // Everything after the operation should be digits (the count)
+            let after_op = &before[op_pos + 1..];
+            if !after_op.chars().all(|c| c.is_ascii_digit()) {
+                return false;
+            }
+        }
+    }
+
+    true
 }
 
 #[cfg(test)]
@@ -1328,6 +1415,171 @@ mod tests {
                 result[5], expected_floor_divisor,
                 "Last element should be the floor divisor (negative)"
             );
+        }
+
+        #[test]
+        fn test_roll_with_addition_no_spaces() {
+            // Arrange
+            let dice_notation = "2d12+2";
+            let expected_modifier = 2;
+
+            // Act
+            let result = roll(dice_notation).expect("Valid dice notation should not error");
+
+            // Assert
+            assert_eq!(
+                result.len(),
+                3,
+                "2d12+2 should return 2 dice results + 1 modifier"
+            );
+
+            // Verify dice results are in valid range
+            for (index, &die_result) in result[0..2].iter().enumerate() {
+                assert_die_result_in_range(
+                    die_result,
+                    MIN_DIE_VALUE,
+                    D12_MAX,
+                    &format!("d12 at index {}", index),
+                );
+            }
+
+            // Verify modifier is correct
+            assert_eq!(
+                result[2], expected_modifier,
+                "Last element should be the addition modifier"
+            );
+        }
+
+        #[test]
+        fn test_roll_with_subtraction_no_spaces() {
+            // Arrange
+            let dice_notation = "3d6-1";
+            let expected_modifier = -1;
+
+            // Act
+            let result = roll(dice_notation).expect("Valid dice notation should not error");
+
+            // Assert
+            assert_eq!(
+                result.len(),
+                4,
+                "3d6-1 should return 3 dice results + 1 modifier"
+            );
+
+            // Verify dice results are in valid range
+            for (index, &die_result) in result[0..3].iter().enumerate() {
+                assert_die_result_in_range(
+                    die_result,
+                    MIN_DIE_VALUE,
+                    D6_MAX,
+                    &format!("d6 at index {}", index),
+                );
+            }
+
+            // Verify negative modifier is correct
+            assert_eq!(
+                result[3], expected_modifier,
+                "Last element should be the subtraction modifier"
+            );
+        }
+
+        #[test]
+        fn test_spaced_vs_non_spaced_operators_consistency() {
+            // Test that spaced and non-spaced operators produce the same structure
+            let spaced_result = roll("2d6 + 3").expect("Spaced notation should work");
+            let non_spaced_result = roll("2d6+3").expect("Non-spaced notation should work");
+
+            // Both should have the same length and structure
+            assert_eq!(
+                spaced_result.len(),
+                non_spaced_result.len(),
+                "Spaced and non-spaced should have same result length"
+            );
+
+            // Last element should be the same (the modifier)
+            assert_eq!(
+                spaced_result.last(),
+                non_spaced_result.last(),
+                "Modifiers should be the same"
+            );
+        }
+
+        #[test]
+        fn test_keep_dice_with_arithmetic_no_spaces() {
+            // Arrange
+            let dice_notation = "4d6K3+2";
+            let expected_modifier = 2;
+
+            // Act
+            let result = roll(dice_notation).expect("Valid dice notation should not error");
+
+            // Assert
+            assert_eq!(
+                result.len(),
+                4,
+                "4d6K3+2 should return 3 kept dice + 1 modifier"
+            );
+
+            // Verify kept dice are in descending order
+            for i in 1..3 {
+                assert!(
+                    result[i - 1] >= result[i],
+                    "Kept dice should be in descending order: {:?}",
+                    result
+                );
+            }
+
+            // Verify modifier is correct
+            assert_eq!(
+                result[3], expected_modifier,
+                "Last element should be the addition modifier"
+            );
+        }
+
+        #[test]
+        fn test_dice_to_dice_operations_no_spaces() {
+            // Arrange
+            let dice_notation = "2d12+1d6";
+
+            // Act
+            let result = roll(dice_notation).expect("Valid dice notation should not error");
+
+            // Assert
+            assert_eq!(
+                result.len(),
+                3,
+                "2d12+1d6 should return 2d12 + 1d6 = 3 elements"
+            );
+
+            // Verify first two dice are d12 results
+            for (index, &die_result) in result[0..2].iter().enumerate() {
+                assert_die_result_in_range(
+                    die_result,
+                    MIN_DIE_VALUE,
+                    D12_MAX,
+                    &format!("d12 at index {}", index),
+                );
+            }
+
+            // Verify third element is d6 result
+            assert_die_result_in_range(result[2], MIN_DIE_VALUE, D6_MAX, "d6 result");
+        }
+
+        #[test]
+        fn test_dice_to_dice_spaced_vs_non_spaced_consistency() {
+            // Test that dice-to-dice operations work consistently with and without spaces
+            let spaced_result = roll("2d6 + 1d4").expect("Spaced dice-to-dice should work");
+            let non_spaced_result = roll("2d6+1d4").expect("Non-spaced dice-to-dice should work");
+
+            // Both should have the same structure
+            assert_eq!(
+                spaced_result.len(),
+                non_spaced_result.len(),
+                "Spaced and non-spaced dice-to-dice should have same result length"
+            );
+
+            // Should have 2d6 + 1d4 = 3 elements
+            assert_eq!(spaced_result.len(), 3, "Should have 2d6 + 1d4 = 3 elements");
         }
     }
 
