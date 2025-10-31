@@ -380,6 +380,17 @@ d20!>10: Roll a d20 and explode every time a number higher than 10 is rolled
 3d12!<2: Roll 3d12 and explode every time a 1 is rolled.
 ```
 
+#### Repeat Rolls (x):
+
+Repeat the entire dice roll multiple times and return each roll result as a separate element.
+
+```
+3d6x6: Roll 3d6 six times and return 6 roll results
+2d20x3: Roll 2d20 three times and return 3 roll results  
+1d4x10: Roll 1d4 ten times and return 10 roll results
+4d6K3x4: Roll 4d6K3 four times and return 4 roll results
+```
+
 #### Rerolling Dice (r/R):
 
 Rerolling allows you to roll certain dice again based on specific conditions,

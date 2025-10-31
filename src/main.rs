@@ -217,6 +217,12 @@ fn show_examples() {
     println!("  rollpoly '3d8R1'      # Keep rerolling 1s until no 1s remain");
     println!("  rollpoly '4d10R<3'    # Keep rerolling anything under 3");
     println!();
+    println!("Repeat Rolls (x):");
+    println!("  rollpoly '3d6x6'      # Roll 3d6 six times, return 6 roll results");
+    println!("  rollpoly '2d20x3'     # Roll 2d20 three times, return 3 roll results");
+    println!("  rollpoly '1d4x10'     # Roll 1d4 ten times, return 10 roll results");
+    println!("  rollpoly '4d6K3x4'    # Roll 4d6K3 four times, return 4 roll results");
+    println!();
     println!("Using subcommands:");
     println!("  rollpoly roll '2d6 + 3' -n 5    # Roll 5 times");
     println!("  rollpoly roll '4d6K3' -n 3      # Roll multiple times");

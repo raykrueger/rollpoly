@@ -81,6 +81,12 @@ pub enum DiceExpression {
         reroll_type: RerollType,
     },
 
+    /// Repeat rolls (e.g., "3d6x6", "2d20x3")
+    Repeat {
+        expression: Box<DiceExpression>,
+        times: usize,
+    },
+
     /// Binary arithmetic operation (e.g., "2d6 + 3", "4d8 * 2d4")
     Binary {
         left: Box<DiceExpression>,
@@ -259,7 +265,28 @@ impl<'a> DiceParser<'a> {
         }
 
         // Check for modifiers
-        self.parse_dice_modifiers(count, sides)
+        let mut expr = self.parse_dice_modifiers(count, sides)?;
+
+        // Check for repeat modifier (x followed by number)
+        if self.peek_char() == Some('x') && self.position + 1 < self.input.len() {
+            let next_char = self.input.chars().nth(self.position + 1);
+            if next_char.is_some_and(|c| c.is_ascii_digit()) {
+                self.advance(); // consume 'x'
+                let times = self.parse_number()? as usize;
+                if times == 0 {
+                    return Err(DiceError::InvalidNotation {
+                        input: self.input.to_string(),
+                        reason: "Repeat count must be positive".to_string(),
+                    });
+                }
+                expr = DiceExpression::Repeat {
+                    expression: Box::new(expr),
+                    times,
+                };
+            }
+        }
+
+        Ok(expr)
     }
 
     /// Parse dice modifiers (keep, drop, exploding, success counting, rerolling)
@@ -763,6 +790,25 @@ mod tests {
                 comparison: Comparison::GreaterThan
             }
         );
+    }
+
+    #[test]
+    fn test_parse_repeat_rolls() {
+        let mut parser = DiceParser::new("3d6x4");
+        let expr = parser.parse().unwrap();
+        match expr {
+            DiceExpression::Repeat { expression, times } => {
+                assert_eq!(times, 4);
+                match *expression {
+                    DiceExpression::Simple { count, sides } => {
+                        assert_eq!(count, 3);
+                        assert_eq!(sides, 6);
+                    }
+                    _ => panic!("Expected simple dice expression inside repeat"),
+                }
+            }
+            _ => panic!("Expected repeat expression"),
+        }
     }
 
     #[test]

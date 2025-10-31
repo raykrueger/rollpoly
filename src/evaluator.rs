@@ -269,6 +269,16 @@ fn evaluate_with_rng<R: Rng>(expr: &DiceExpression, rng: &mut R) -> Result<Vec<i
             }
         }
 
+        DiceExpression::Repeat { expression, times } => {
+            let mut roll_results = Vec::new();
+            for _ in 0..*times {
+                let results = evaluate(expression)?;
+                let sum: i32 = results.iter().sum();
+                roll_results.push(sum);
+            }
+            Ok(roll_results)
+        }
+
         DiceExpression::Constant(value) => Ok(vec![*value]),
     }
 }

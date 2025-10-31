@@ -1698,6 +1698,125 @@ mod tests {
         }
     }
 
+    mod repeat_roll_operations {
+        use super::*;
+
+        #[test]
+        fn test_repeat_simple_dice() {
+            // Arrange
+            let notation = "1d6x3";
+
+            // Act
+            let result = roll(notation);
+
+            // Assert
+            assert!(result.is_ok(), "Repeat simple dice should work");
+            let results = result.unwrap();
+            assert_eq!(results.len(), 3, "Should have 3 roll results");
+
+            // All results should be valid d6 roll sums
+            for &roll_sum in &results {
+                assert!(
+                    roll_sum >= 1 && roll_sum <= 6,
+                    "All roll sums should be 1-6, got {}",
+                    roll_sum
+                );
+            }
+        }
+
+        #[test]
+        fn test_repeat_multiple_dice() {
+            // Arrange
+            let notation = "2d6x4";
+
+            // Act
+            let result = roll(notation);
+
+            // Assert
+            assert!(result.is_ok(), "Repeat multiple dice should work");
+            let results = result.unwrap();
+            assert_eq!(results.len(), 4, "Should have 4 roll results (2d6 x 4)");
+
+            // All results should be valid 2d6 roll sums
+            for &roll_sum in &results {
+                assert!(
+                    roll_sum >= 2 && roll_sum <= 12,
+                    "All roll sums should be 2-12, got {}",
+                    roll_sum
+                );
+            }
+        }
+
+        #[test]
+        fn test_repeat_with_keep_highest() {
+            // Arrange
+            let notation = "4d6K3x2";
+
+            // Act
+            let result = roll(notation);
+
+            // Assert
+            assert!(result.is_ok(), "Repeat with keep highest should work");
+            let results = result.unwrap();
+            assert_eq!(results.len(), 2, "Should have 2 roll results (4d6K3 x 2)");
+
+            // All results should be valid 4d6K3 roll sums
+            for &roll_sum in &results {
+                assert!(
+                    roll_sum >= 3 && roll_sum <= 18,
+                    "All roll sums should be 3-18, got {}",
+                    roll_sum
+                );
+            }
+        }
+
+        #[test]
+        fn test_repeat_consistency() {
+            // Arrange
+            let notation = "1d4x10";
+
+            // Act & Assert - Test multiple times to ensure consistency
+            for _ in 0..5 {
+                let result = roll(notation);
+                assert!(result.is_ok(), "Repeat should work consistently");
+
+                let results = result.unwrap();
+                assert_eq!(results.len(), 10, "Should always have 10 roll results");
+
+                // All results should be valid d4 roll sums
+                for &roll_sum in &results {
+                    assert!(
+                        roll_sum >= 1 && roll_sum <= 4,
+                        "All roll sums should be 1-4, got {}",
+                        roll_sum
+                    );
+                }
+            }
+        }
+
+        #[test]
+        fn test_repeat_single_execution() {
+            // Arrange
+            let notation = "3d6x1";
+
+            // Act
+            let result = roll(notation);
+
+            // Assert
+            assert!(result.is_ok(), "Repeat x1 should work");
+            let results = result.unwrap();
+            assert_eq!(results.len(), 1, "Should have 1 roll result");
+
+            // Result should be valid 3d6 roll sum
+            let roll_sum = results[0];
+            assert!(
+                roll_sum >= 3 && roll_sum <= 18,
+                "Roll sum should be 3-18, got {}",
+                roll_sum
+            );
+        }
+    }
+
     mod error_handling {
         use super::*;
 
