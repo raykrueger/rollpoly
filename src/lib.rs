@@ -324,10 +324,9 @@ mod tests {
         }
 
         #[test]
-        fn test_roll_with_multiplication_includes_multiplier() {
+        fn test_roll_with_multiplication_multiplies_sums() {
             // Arrange
             let dice_notation = "1d4 * 3";
-            let expected_multiplier = 3;
 
             // Act
             let result = roll(dice_notation).expect("Valid dice notation should not error");
@@ -335,21 +334,30 @@ mod tests {
             // Assert
             assert_eq!(
                 result.len(),
-                2,
-                "1d4 * 3 should return 1 dice result + 1 multiplier"
+                1,
+                "1d4 * 3 should return 1 result (the product)"
             );
-            assert_die_result_in_range(result[0], MIN_DIE_VALUE, D4_MAX, "d4");
+
+            // The result should be between 1*3=3 and 4*3=12
+            assert!(
+                result[0] >= 3 && result[0] <= 12,
+                "1d4 * 3 should be between 3 and 12, got {}",
+                result[0]
+            );
+
+            // Verify it's actually a multiple of 3
             assert_eq!(
-                result[1], expected_multiplier,
-                "Second element should be the multiplier"
+                result[0] % 3,
+                0,
+                "Result should be divisible by 3, got {}",
+                result[0]
             );
         }
 
         #[test]
-        fn test_roll_with_division_includes_divisor() {
+        fn test_roll_with_division_divides_sums() {
             // Arrange
             let dice_notation = "5d6 / 3";
-            let expected_divisor = 3;
 
             // Act
             let result = roll(dice_notation).expect("Valid dice notation should not error");
@@ -357,32 +365,22 @@ mod tests {
             // Assert
             assert_eq!(
                 result.len(),
-                6,
-                "5d6 / 3 should return 5 dice results + 1 divisor"
+                1,
+                "5d6 / 3 should return 1 result (the quotient)"
             );
 
-            // Verify dice results are in valid range
-            for (index, &die_result) in result[0..5].iter().enumerate() {
-                assert_die_result_in_range(
-                    die_result,
-                    MIN_DIE_VALUE,
-                    D6_MAX,
-                    &format!("d6 at index {}", index),
-                );
-            }
-
-            // Verify divisor is correct
-            assert_eq!(
-                result[5], expected_divisor,
-                "Last element should be the divisor"
+            // The result should be between (5*1)/3=1 and (5*6)/3=10
+            assert!(
+                result[0] >= 1 && result[0] <= 10,
+                "5d6 / 3 should be between 1 and 10, got {}",
+                result[0]
             );
         }
 
         #[test]
-        fn test_roll_with_floor_division_includes_negative_divisor() {
+        fn test_roll_with_floor_division_floor_divides_sums() {
             // Arrange
             let dice_notation = "5d6 // 3";
-            let expected_floor_divisor = -3; // Negative to distinguish from regular division
 
             // Act
             let result = roll(dice_notation).expect("Valid dice notation should not error");
@@ -390,24 +388,15 @@ mod tests {
             // Assert
             assert_eq!(
                 result.len(),
-                6,
-                "5d6 // 3 should return 5 dice results + 1 floor divisor"
+                1,
+                "5d6 // 3 should return 1 result (the floor quotient)"
             );
 
-            // Verify dice results are in valid range
-            for (index, &die_result) in result[0..5].iter().enumerate() {
-                assert_die_result_in_range(
-                    die_result,
-                    MIN_DIE_VALUE,
-                    D6_MAX,
-                    &format!("d6 at index {}", index),
-                );
-            }
-
-            // Verify floor divisor is represented as negative
-            assert_eq!(
-                result[5], expected_floor_divisor,
-                "Last element should be the floor divisor (negative)"
+            // The result should be between floor((5*1)/3)=1 and floor((5*6)/3)=10
+            assert!(
+                result[0] >= 1 && result[0] <= 10,
+                "5d6 // 3 should be between 1 and 10, got {}",
+                result[0]
             );
         }
 

@@ -249,18 +249,32 @@ fn evaluate_with_rng<R: Rng>(expr: &DiceExpression, rng: &mut R) -> Result<Vec<i
                     results.extend(right_results.iter().map(|&x| -x));
                     Ok(results)
                 }
-                BinaryOp::Multiply | BinaryOp::Divide => {
-                    // For backward compatibility, return individual results for simple cases
-                    let mut results = left_results;
-                    results.extend(right_results);
-                    Ok(results)
+                BinaryOp::Multiply => {
+                    let left_sum: i32 = left_results.iter().sum();
+                    let right_sum: i32 = right_results.iter().sum();
+                    Ok(vec![left_sum * right_sum])
+                }
+                BinaryOp::Divide => {
+                    let left_sum: i32 = left_results.iter().sum();
+                    let right_sum: i32 = right_results.iter().sum();
+                    if right_sum == 0 {
+                        return Err(DiceError::InvalidNotation {
+                            input: "division by zero".to_string(),
+                            reason: "Cannot divide by zero".to_string(),
+                        });
+                    }
+                    Ok(vec![left_sum / right_sum])
                 }
                 BinaryOp::FloorDivide => {
-                    // For backward compatibility, return individual results for simple cases
-                    // Use negative values to distinguish from regular division
-                    let mut results = left_results;
-                    results.extend(right_results.iter().map(|&x| -x));
-                    Ok(results)
+                    let left_sum: i32 = left_results.iter().sum();
+                    let right_sum: i32 = right_results.iter().sum();
+                    if right_sum == 0 {
+                        return Err(DiceError::InvalidNotation {
+                            input: "division by zero".to_string(),
+                            reason: "Cannot divide by zero".to_string(),
+                        });
+                    }
+                    Ok(vec![left_sum.div_euclid(right_sum)])
                 }
             }
         }
@@ -318,6 +332,30 @@ mod tests {
     }
 
     #[test]
+    fn test_evaluate_multiplication() {
+        let mut parser = DiceParser::new("2d6 * 3");
+        let expr = parser.parse().unwrap();
+        let results = evaluate(&expr).unwrap();
+
+        assert_eq!(results.len(), 1); // Single result (the product)
+                                      // Result should be between (1+1)*3=6 and (6+6)*3=36
+        assert!(results[0] >= 6 && results[0] <= 36);
+        // Should be divisible by 3
+        assert_eq!(results[0] % 3, 0);
+    }
+
+    #[test]
+    fn test_evaluate_division() {
+        let mut parser = DiceParser::new("6d6 / 2");
+        let expr = parser.parse().unwrap();
+        let results = evaluate(&expr).unwrap();
+
+        assert_eq!(results.len(), 1); // Single result (the quotient)
+                                      // Result should be between (6*1)/2=3 and (6*6)/2=18
+        assert!(results[0] >= 3 && results[0] <= 18);
+    }
+
+    #[test]
     fn test_evaluate_success_counting() {
         let mut parser = DiceParser::new("5d10>6");
         let expr = parser.parse().unwrap();
@@ -361,5 +399,16 @@ mod tests {
 
         // Last element should be -1 (the negated constant)
         assert_eq!(results[5], -1);
+    }
+
+    #[test]
+    fn test_evaluate_multiplication_with_dice() {
+        let mut parser = DiceParser::new("1d6 * 2d4");
+        let expr = parser.parse().unwrap();
+        let results = evaluate(&expr).unwrap();
+
+        assert_eq!(results.len(), 1); // Single result (the product)
+                                      // Result should be between 1*2=2 and 6*8=48
+        assert!(results[0] >= 2 && results[0] <= 48);
     }
 }

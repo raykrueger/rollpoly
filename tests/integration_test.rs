@@ -36,9 +36,9 @@ fn test_public_api_arithmetic_operations() {
     let test_cases = vec![
         ("1d6 + 5", 2),
         ("2d4 - 1", 3),
-        ("1d8 * 2", 2),
-        ("3d6 / 2", 4),
-        ("2d10 // 3", 3),
+        ("1d8 * 2", 1),   // Multiplication now returns single result (the product)
+        ("3d6 / 2", 1),   // Division now returns single result (the quotient)
+        ("2d10 // 3", 1), // Floor division now returns single result (the floor quotient)
     ];
 
     for (notation, expected_len) in test_cases {
