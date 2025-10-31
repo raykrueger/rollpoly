@@ -344,13 +344,6 @@ of dice or by nothing to indicate dropping just one.
 5d10X3 Roll 5d10 and drop the highest 3
 ```
 
-#### Drop Lowest (x):
-
-```
-6d8x: Roll 6d8 and drop the lowest
-5d10x3 Roll 5d10 and drop the lowest 3
-```
-
 #### Count Successes (> or <):
 
 Counts the number of rolls above or below a certain value.

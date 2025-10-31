@@ -70,16 +70,6 @@ fn evaluate_with_rng<R: Rng>(expr: &DiceExpression, rng: &mut R) -> Result<Vec<i
             Ok(results)
         }
 
-        DiceExpression::DropLowest { count, sides, drop } => {
-            let mut results = Vec::with_capacity(*count);
-            for _ in 0..*count {
-                results.push(rng.random_range(1..=*sides));
-            }
-            results.sort_unstable_by(|a, b| b.cmp(a)); // Sort descending (highest first)
-            results.truncate(count - drop); // Keep all but the lowest
-            Ok(results)
-        }
-
         DiceExpression::Exploding {
             count,
             sides,

@@ -48,13 +48,6 @@ pub enum DiceExpression {
         drop: usize,
     },
 
-    /// Drop lowest dice (e.g., "5d6x1")
-    DropLowest {
-        count: usize,
-        sides: i32,
-        drop: usize,
-    },
-
     /// Exploding dice (e.g., "3d6!", "2d10!>8")
     Exploding {
         count: usize,
@@ -321,21 +314,6 @@ impl<'a> DiceParser<'a> {
                     });
                 }
                 Ok(DiceExpression::DropHighest { count, sides, drop })
-            }
-            Some('x') => {
-                self.advance(); // consume 'x'
-                let drop = if self.peek_char().is_some_and(|c| c.is_ascii_digit()) {
-                    self.parse_number()? as usize
-                } else {
-                    1
-                };
-                if drop >= count {
-                    return Err(DiceError::InvalidNotation {
-                        input: self.input.to_string(),
-                        reason: "Cannot drop all dice".to_string(),
-                    });
-                }
-                Ok(DiceExpression::DropLowest { count, sides, drop })
             }
             Some('!') => {
                 self.advance(); // consume '!'

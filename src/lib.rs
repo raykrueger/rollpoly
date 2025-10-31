@@ -23,7 +23,7 @@
 //!
 //! - **Basic dice rolling**: Roll any number of dice with any number of sides (e.g., `4d10`, `d20`)
 //! - **Arithmetic operations**: Add, subtract, multiply, and divide dice results (e.g., `3d6 + 5`)
-//! - **Advanced mechanics**: Keep/drop highest/lowest, exploding dice, rerolling, success counting
+//! - **Advanced mechanics**: Keep highest/lowest, drop highest, exploding dice, rerolling, success counting
 //! - **Safety limits**: Maximum of 10 dice per roll to prevent excessive resource usage
 //! - **Error handling**: Comprehensive error reporting for invalid input
 //! - **Random number generation**: Uses cryptographically secure random number generation
@@ -1017,68 +1017,6 @@ mod tests {
         }
 
         #[test]
-        fn test_drop_lowest_single_die() {
-            // Arrange
-            let notation = "6d8x";
-
-            // Act
-            let result = roll(notation);
-
-            // Assert
-            assert!(result.is_ok(), "Drop lowest should work");
-            let results = result.unwrap();
-            assert_eq!(results.len(), 5, "Should keep 5 dice after dropping 1");
-
-            // Results should be in descending order (highest first, lowest dropped)
-            for i in 1..results.len() {
-                assert!(
-                    results[i - 1] >= results[i],
-                    "Results should be in descending order: {:?}",
-                    results
-                );
-            }
-
-            // All results should be valid d8 rolls
-            for &result in &results {
-                assert!(
-                    result >= 1 && result <= 8,
-                    "All results should be valid d8 rolls"
-                );
-            }
-        }
-
-        #[test]
-        fn test_drop_lowest_multiple_dice() {
-            // Arrange
-            let notation = "5d10x3";
-
-            // Act
-            let result = roll(notation);
-
-            // Assert
-            assert!(result.is_ok(), "Drop lowest multiple should work");
-            let results = result.unwrap();
-            assert_eq!(results.len(), 2, "Should keep 2 dice after dropping 3");
-
-            // Results should be in descending order (highest kept)
-            for i in 1..results.len() {
-                assert!(
-                    results[i - 1] >= results[i],
-                    "Results should be in descending order: {:?}",
-                    results
-                );
-            }
-
-            // All results should be valid d10 rolls
-            for &result in &results {
-                assert!(
-                    result >= 1 && result <= 10,
-                    "All results should be valid d10 rolls"
-                );
-            }
-        }
-
-        #[test]
         fn test_drop_highest_with_arithmetic() {
             // Arrange
             let notation = "6d6X2 + 5";
@@ -1100,37 +1038,6 @@ mod tests {
                     results[i - 1] <= results[i],
                     "Kept dice should be in ascending order: {:?}",
                     results
-                );
-            }
-        }
-
-        #[test]
-        fn test_character_generation_4d6_drop_lowest() {
-            // Arrange - This is a common D&D character generation method
-            let notation = "4d6x";
-
-            // Act
-            let result = roll(notation);
-
-            // Assert
-            assert!(result.is_ok(), "4d6 drop lowest should work");
-            let results = result.unwrap();
-            assert_eq!(results.len(), 3, "Should keep 3 dice after dropping lowest");
-
-            // Results should be in descending order (highest kept)
-            for i in 1..results.len() {
-                assert!(
-                    results[i - 1] >= results[i],
-                    "Results should be in descending order: {:?}",
-                    results
-                );
-            }
-
-            // All results should be valid d6 rolls
-            for &result in &results {
-                assert!(
-                    result >= 1 && result <= 6,
-                    "All results should be valid d6 rolls"
                 );
             }
         }
