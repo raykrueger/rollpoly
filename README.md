@@ -52,7 +52,7 @@ Add rollpoly to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-rollpoly = "0.5"
+rollpoly = "0.6"
 ```
 
 ### Basic Usage
