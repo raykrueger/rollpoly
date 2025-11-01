@@ -230,6 +230,8 @@ impl<'a> DiceParser<'a> {
 
     /// Parse dice notation with optional modifiers
     fn parse_dice(&mut self) -> Result<DiceExpression, DiceError> {
+        self.skip_whitespace();
+
         // Parse optional count (defaults to 1)
         let count = if self.peek_char().is_some_and(|c| c.is_ascii_digit()) {
             self.parse_number()? as usize
@@ -247,6 +249,8 @@ impl<'a> DiceParser<'a> {
             return Err(DiceError::TooManyDice { count, max: 10 });
         }
 
+        self.skip_whitespace();
+
         // Expect 'd'
         if self.peek_char() != Some('d') {
             return Err(DiceError::InvalidNotation {
@@ -255,6 +259,8 @@ impl<'a> DiceParser<'a> {
             });
         }
         self.advance(); // consume 'd'
+
+        self.skip_whitespace();
 
         // Parse sides
         let sides = self.parse_number()?;
@@ -268,10 +274,29 @@ impl<'a> DiceParser<'a> {
         let mut expr = self.parse_dice_modifiers(count, sides)?;
 
         // Check for repeat modifier (x followed by number)
+        self.skip_whitespace();
         if self.peek_char() == Some('x') && self.position + 1 < self.input.len() {
-            let next_char = self.input.chars().nth(self.position + 1);
+            // Look ahead to see if there's a digit after potential whitespace
+            let mut lookahead_pos = self.position + 1;
+            while lookahead_pos < self.input.len()
+                && self
+                    .input
+                    .chars()
+                    .nth(lookahead_pos)
+                    .unwrap()
+                    .is_whitespace()
+            {
+                lookahead_pos += 1;
+            }
+            let next_char = if lookahead_pos < self.input.len() {
+                self.input.chars().nth(lookahead_pos)
+            } else {
+                None
+            };
+
             if next_char.is_some_and(|c| c.is_ascii_digit()) {
                 self.advance(); // consume 'x'
+                self.skip_whitespace();
                 let times = self.parse_number()? as usize;
                 if times == 0 {
                     return Err(DiceError::InvalidNotation {
@@ -296,9 +321,12 @@ impl<'a> DiceParser<'a> {
         count: usize,
         sides: i32,
     ) -> Result<DiceExpression, DiceError> {
+        self.skip_whitespace();
+
         match self.peek_char() {
             Some('K') => {
                 self.advance(); // consume 'K'
+                self.skip_whitespace();
                 let keep = if self.peek_char().is_some_and(|c| c.is_ascii_digit()) {
                     self.parse_number()? as usize
                 } else {
@@ -314,6 +342,7 @@ impl<'a> DiceParser<'a> {
             }
             Some('k') => {
                 self.advance(); // consume 'k'
+                self.skip_whitespace();
                 let keep = if self.peek_char().is_some_and(|c| c.is_ascii_digit()) {
                     self.parse_number()? as usize
                 } else {
@@ -329,6 +358,7 @@ impl<'a> DiceParser<'a> {
             }
             Some('X') => {
                 self.advance(); // consume 'X'
+                self.skip_whitespace();
                 let drop = if self.peek_char().is_some_and(|c| c.is_ascii_digit()) {
                     self.parse_number()? as usize
                 } else {
@@ -344,6 +374,7 @@ impl<'a> DiceParser<'a> {
             }
             Some('!') => {
                 self.advance(); // consume '!'
+                self.skip_whitespace();
                 let condition = self.parse_explode_condition()?;
                 Ok(DiceExpression::Exploding {
                     count,
@@ -359,11 +390,14 @@ impl<'a> DiceParser<'a> {
                     self.advance();
                     Comparison::LessThan
                 };
+                self.skip_whitespace();
                 let target = self.parse_number()?;
 
+                self.skip_whitespace();
                 // Check for failure condition
                 if self.peek_char() == Some('f') {
                     self.advance(); // consume 'f'
+                    self.skip_whitespace();
                     let failure_comparison = if self.peek_char() == Some('>') {
                         self.advance();
                         Comparison::GreaterThan
@@ -376,6 +410,7 @@ impl<'a> DiceParser<'a> {
                             reason: "Expected '>' or '<' after 'f'".to_string(),
                         });
                     };
+                    self.skip_whitespace();
                     let failure_target = self.parse_number()?;
 
                     // Validate that success and failure conditions don't conflict
@@ -415,6 +450,7 @@ impl<'a> DiceParser<'a> {
                     self.advance();
                     RerollType::Continuous
                 };
+                self.skip_whitespace();
                 let condition = self.parse_reroll_condition()?;
                 Ok(DiceExpression::Rerolling {
                     count,
@@ -533,6 +569,11 @@ impl<'a> DiceParser<'a> {
 
         // Check for optional number followed by 'd'
         while pos < self.input.len() && self.input.chars().nth(pos).unwrap().is_ascii_digit() {
+            pos += 1;
+        }
+
+        // Skip whitespace after number
+        while pos < self.input.len() && self.input.chars().nth(pos).unwrap().is_whitespace() {
             pos += 1;
         }
 
@@ -826,5 +867,48 @@ mod tests {
         let mut parser = DiceParser::new("invalid");
         let result = parser.parse();
         assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_parse_with_spaces_in_dice_notation() {
+        // Test spaces around 'd'
+        let mut parser = DiceParser::new("2 d 6");
+        let expr = parser.parse().unwrap();
+        assert_eq!(expr, DiceExpression::Simple { count: 2, sides: 6 });
+
+        // Test spaces in keep notation
+        let mut parser = DiceParser::new("4 d 6 K 3");
+        let expr = parser.parse().unwrap();
+        assert_eq!(
+            expr,
+            DiceExpression::KeepHighest {
+                count: 4,
+                sides: 6,
+                keep: 3
+            }
+        );
+
+        // Test spaces in arithmetic
+        let mut parser = DiceParser::new("2 d 6 + 3");
+        let expr = parser.parse().unwrap();
+        match expr {
+            DiceExpression::Binary { left, op, right } => {
+                assert_eq!(*left, DiceExpression::Simple { count: 2, sides: 6 });
+                assert_eq!(op, BinaryOp::Add);
+                assert_eq!(*right, DiceExpression::Constant(3));
+            }
+            _ => panic!("Expected binary expression"),
+        }
+
+        // Test spaces in implicit single die
+        let mut parser = DiceParser::new("d 20");
+        let expr = parser.parse().unwrap();
+        assert_eq!(
+            expr,
+            DiceExpression::Simple {
+                count: 1,
+                sides: 20
+            }
+        );
     }
 }

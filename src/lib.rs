@@ -770,6 +770,47 @@ mod tests {
         }
 
         #[test]
+        fn test_roll_with_spaces_in_dice_notation() {
+            // Test spaces within dice notation components
+            let test_cases = vec![
+                ("2 d 6", "2d6"),             // Spaces around 'd'
+                ("2d 6", "2d6"),              // Space after 'd'
+                ("2 d6", "2d6"),              // Space before 'd'
+                ("4 d 6 K 3", "4d6K3"),       // Spaces in keep notation
+                ("3 d 8 + 2", "3d8+2"),       // Spaces with arithmetic
+                ("d 20", "d20"),              // Space in implicit single die
+                ("2 d 6 + 1 d 4", "2d6+1d4"), // Spaces in dice-to-dice
+            ];
+
+            for (spaced, compact) in test_cases {
+                let spaced_result = roll(spaced);
+                let compact_result = roll(compact);
+
+                assert!(
+                    spaced_result.is_ok(),
+                    "Spaced notation '{}' should parse successfully",
+                    spaced
+                );
+                assert!(
+                    compact_result.is_ok(),
+                    "Compact notation '{}' should parse successfully",
+                    compact
+                );
+
+                let spaced_results = spaced_result.unwrap();
+                let compact_results = compact_result.unwrap();
+
+                assert_eq!(
+                    spaced_results.len(),
+                    compact_results.len(),
+                    "Spaced '{}' and compact '{}' should have same result length",
+                    spaced,
+                    compact
+                );
+            }
+        }
+
+        #[test]
         fn test_roll_stays_within_bounds_over_many_iterations() {
             // Arrange
             let dice_notation = "1d6";
