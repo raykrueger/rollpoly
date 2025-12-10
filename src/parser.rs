@@ -245,8 +245,8 @@ impl<'a> DiceParser<'a> {
                 count: count.to_string(),
             });
         }
-        if count > 10 {
-            return Err(DiceError::TooManyDice { count, max: 10 });
+        if count > 25 {
+            return Err(DiceError::TooManyDice { count, max: 25 });
         }
 
         self.skip_whitespace();
@@ -854,11 +854,11 @@ mod tests {
 
     #[test]
     fn test_parse_error_too_many_dice() {
-        let mut parser = DiceParser::new("15d6");
+        let mut parser = DiceParser::new("30d6");
         let result = parser.parse();
         assert!(matches!(
             result,
-            Err(DiceError::TooManyDice { count: 15, max: 10 })
+            Err(DiceError::TooManyDice { count: 30, max: 25 })
         ));
     }
 

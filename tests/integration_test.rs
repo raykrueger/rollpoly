@@ -112,13 +112,13 @@ fn test_randomness_across_multiple_calls() {
 #[test]
 fn test_large_dice_counts() {
     // Test that the library properly enforces the dice count limit
-    let result = roll("11d6");
+    let result = roll("26d6");
     assert!(result.is_err(), "Should reject dice counts over the limit");
 
     match result.unwrap_err() {
         DiceError::TooManyDice { count, max } => {
-            assert_eq!(count, 11);
-            assert_eq!(max, 10);
+            assert_eq!(count, 26);
+            assert_eq!(max, 25);
         }
         _ => panic!("Expected TooManyDice error"),
     }

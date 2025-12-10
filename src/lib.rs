@@ -24,7 +24,7 @@
 //! - **Basic dice rolling**: Roll any number of dice with any number of sides (e.g., `4d10`, `d20`)
 //! - **Arithmetic operations**: Add, subtract, multiply, and divide dice results (e.g., `3d6 + 5`)
 //! - **Advanced mechanics**: Keep highest/lowest, drop highest, exploding dice, rerolling, success counting
-//! - **Safety limits**: Maximum of 10 dice per roll to prevent excessive resource usage
+//! - **Safety limits**: Maximum of 25 dice per roll to prevent excessive resource usage
 //! - **Error handling**: Comprehensive error reporting for invalid input
 //! - **Random number generation**: Uses cryptographically secure random number generation
 //!
@@ -59,7 +59,7 @@
 //! # Safety Limits
 //!
 //! To prevent excessive resource usage and potential abuse, the library enforces
-//! a maximum limit of 10 dice per roll. Attempts to roll more than 10 dice will
+//! a maximum limit of 25 dice per roll. Attempts to roll more than 25 dice will
 //! result in a [`DiceError::TooManyDice`] error.
 //!
 //! # Error Handling
@@ -1967,12 +1967,12 @@ mod tests {
         fn test_roll_with_too_many_dice_returns_error() {
             // Arrange
             let test_cases = vec![
-                "11d6",   // Just over the limit
-                "20d10",  // Well over the limit
+                "26d6",   // Just over the limit
+                "30d10",  // Well over the limit
                 "100d20", // Way over the limit
-                "15d6K3", // Too many dice with keep operation
-                "12d8>4", // Too many dice with success counting
-                "25d10!", // Too many dice with exploding
+                "30d6K3", // Too many dice with keep operation
+                "27d8>4", // Too many dice with success counting
+                "40d10!", // Too many dice with exploding
                 "50d6r1", // Too many dice with rerolling
             ];
 
@@ -1991,11 +1991,11 @@ mod tests {
                 match error {
                     DiceError::TooManyDice { count, max } => {
                         assert!(
-                            count > 10,
-                            "Dice count should be greater than 10, got {}",
+                            count > 25,
+                            "Dice count should be greater than 25, got {}",
                             count
                         );
-                        assert_eq!(max, 10, "Max should be 10");
+                        assert_eq!(max, 25, "Max should be 25");
                     }
                     _ => panic!(
                         "Expected TooManyDice error for '{}', got: {:?}",
@@ -2009,12 +2009,12 @@ mod tests {
         fn test_roll_with_exactly_max_dice_succeeds() {
             // Arrange
             let test_cases = vec![
-                "10d6",   // Exactly at the limit
-                "10d20",  // Exactly at the limit with different die size
-                "10d6K3", // Exactly at limit with keep operation
-                "10d8>4", // Exactly at limit with success counting
-                "10d10!", // Exactly at limit with exploding
-                "10d6r1", // Exactly at limit with rerolling
+                "25d6",   // Exactly at the limit
+                "25d20",  // Exactly at the limit with different die size
+                "25d6K3", // Exactly at limit with keep operation
+                "25d8>4", // Exactly at limit with success counting
+                "25d10!", // Exactly at limit with exploding
+                "25d6r1", // Exactly at limit with rerolling
             ];
 
             for valid_input in test_cases {
@@ -2042,10 +2042,10 @@ mod tests {
         fn test_roll_with_arithmetic_and_too_many_dice_returns_error() {
             // Arrange
             let test_cases = vec![
-                "11d6 + 5",    // Left side has too many dice
-                "5d6 + 11d4",  // Right side has too many dice
-                "15d8 - 3",    // Left side has too many dice with subtraction
-                "2d6 * 20d10", // Right side has too many dice with multiplication
+                "26d6 + 5",    // Left side has too many dice
+                "5d6 + 26d4",  // Right side has too many dice
+                "30d8 - 3",    // Left side has too many dice with subtraction
+                "2d6 * 30d10", // Right side has too many dice with multiplication
             ];
 
             for invalid_input in test_cases {
@@ -2063,11 +2063,11 @@ mod tests {
                 match error {
                     DiceError::TooManyDice { count, max } => {
                         assert!(
-                            count > 10,
-                            "Dice count should be greater than 10, got {}",
+                            count > 25,
+                            "Dice count should be greater than 25, got {}",
                             count
                         );
-                        assert_eq!(max, 10, "Max should be 10");
+                        assert_eq!(max, 25, "Max should be 25");
                     }
                     _ => panic!(
                         "Expected TooManyDice error for '{}', got: {:?}",
@@ -2080,7 +2080,7 @@ mod tests {
         #[test]
         fn test_dice_count_limit_error_message() {
             // Arrange
-            let invalid_input = "15d6";
+            let invalid_input = "30d6";
 
             // Act
             let result = roll(invalid_input);
@@ -2097,12 +2097,12 @@ mod tests {
                 error_message
             );
             assert!(
-                error_message.contains("15"),
+                error_message.contains("30"),
                 "Error message should contain the actual count: {}",
                 error_message
             );
             assert!(
-                error_message.contains("10"),
+                error_message.contains("25"),
                 "Error message should contain the maximum allowed: {}",
                 error_message
             );
